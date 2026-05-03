@@ -1,0 +1,34 @@
+# ARENA clone (large, external)
+arena/
+
+# Papers and PDFs (copyright + size)
+papers/
+**/context/*.pdf
+**/context/papers/
+
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+*.egg-info/
+.ipynb_checkpoints/
+
+# Experiment outputs (large, regenerable)
+**/results/*.pt
+**/results/*.npy
+**/results/*.npz
+**/results/checkpoints/
+wandb/
+mlruns/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Secrets
+.env
+.env.local
