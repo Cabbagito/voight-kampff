@@ -3,8 +3,8 @@ arena/
 
 # Papers and PDFs (copyright + size)
 papers/
-**/context/*.pdf
-**/context/papers/
+**/papers/
+*.pdf
 
 # Python / uv
 .venv/
@@ -16,10 +16,10 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Experiment outputs (large, regenerable)
-**/results/*.pt
-**/results/*.npy
-**/results/*.npz
-**/results/checkpoints/
+*.pt
+*.npy
+*.npz
+checkpoints/
 wandb/
 mlruns/
 
