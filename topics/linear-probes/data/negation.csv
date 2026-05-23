@@ -1,0 +1,201 @@
+statement,label,form
+Paris is the capital of France.,1,aff
+Paris is the capital of Germany.,0,aff
+Paris is not the capital of France.,0,neg
+Paris is not the capital of Germany.,1,neg
+The Nile River flows through Egypt.,1,aff
+The Nile River flows through Argentina.,0,aff
+The Nile River does not flow through Egypt.,0,neg
+The Nile River does not flow through Argentina.,1,neg
+Spain borders France.,1,aff
+Spain borders Germany.,0,aff
+Spain does not border France.,0,neg
+Spain does not border Germany.,1,neg
+Mount Everest is located in Nepal.,1,aff
+Mount Everest is located in Brazil.,0,aff
+Mount Everest is not located in Nepal.,0,neg
+Mount Everest is not located in Brazil.,1,neg
+Australia is a continent.,1,aff
+Australia is a continent of Europe.,0,aff
+Australia is not a continent.,0,neg
+Australia is not a continent of Europe.,1,neg
+Seven plus five equals twelve.,1,aff
+Seven plus five equals eleven.,0,aff
+Seven plus five does not equal twelve.,0,neg
+Seven plus five does not equal eleven.,1,neg
+Nine times three equals twenty-seven.,1,aff
+Nine times three equals twenty-five.,0,aff
+Nine times three does not equal twenty-seven.,0,neg
+Nine times three does not equal twenty-five.,1,neg
+Twenty minus eight equals twelve.,1,aff
+Twenty minus eight equals ten.,0,aff
+Twenty minus eight does not equal twelve.,0,neg
+Twenty minus eight does not equal ten.,1,neg
+Sixteen divided by four equals four.,1,aff
+Sixteen divided by four equals five.,0,aff
+Sixteen divided by four does not equal four.,0,neg
+Sixteen divided by four does not equal five.,1,neg
+Six plus fourteen equals twenty.,1,aff
+Six plus fourteen equals nineteen.,0,aff
+Six plus fourteen does not equal twenty.,0,neg
+Six plus fourteen does not equal nineteen.,1,neg
+Egypt is located on the African continent.,1,aff
+Egypt is located on the Asian continent.,0,aff
+Egypt is not located on the African continent.,0,neg
+Egypt is not located on the Asian continent.,1,neg
+The Nile is the longest river in Africa.,1,aff
+The Nile is the longest river in South America.,0,aff
+The Nile is not the longest river in Africa.,0,neg
+The Nile is not the longest river in South America.,1,neg
+Brazil's official currency is the Brazilian Real.,1,aff
+Brazil's official currency is the Mexican Peso.,0,aff
+Brazil's official currency is not the Brazilian Real.,0,neg
+Brazil's official currency is not the Mexican Peso.,1,neg
+Japan's primary language is Japanese.,1,aff
+Japan's primary language is Mandarin Chinese.,0,aff
+Japan's primary language is not Japanese.,0,neg
+Japan's primary language is not Mandarin Chinese.,1,neg
+Oxygen has atomic number eight.,1,aff
+Oxygen has atomic number six.,0,aff
+Oxygen does not have atomic number eight.,0,neg
+Oxygen does not have atomic number six.,1,neg
+Mars has two natural moons.,1,aff
+Mars has four natural moons.,0,aff
+Mars does not have two natural moons.,0,neg
+Mars does not have four natural moons.,1,neg
+Lions are classified as mammals.,1,aff
+Lions are classified as reptiles.,0,aff
+Lions are not classified as mammals.,0,neg
+Lions are not classified as reptiles.,1,neg
+Water freezes at zero degrees Celsius.,1,aff
+Water freezes at fifty degrees Celsius.,0,aff
+Water does not freeze at zero degrees Celsius.,0,neg
+Water does not freeze at fifty degrees Celsius.,1,neg
+Photosynthesis produces oxygen as a byproduct.,1,aff
+Photosynthesis produces helium as a byproduct.,0,aff
+Photosynthesis does not produce oxygen as a byproduct.,0,neg
+Photosynthesis does not produce helium as a byproduct.,1,neg
+The Amazon River flows through South America.,1,aff
+The Amazon River flows through Africa.,0,aff
+The Amazon River does not flow through South America.,0,neg
+The Amazon River does not flow through Africa.,1,neg
+The Sahara Desert is located in Africa.,1,aff
+The Sahara Desert is located in Australia.,0,aff
+The Sahara Desert is not located in Africa.,0,neg
+The Sahara Desert is not located in Australia.,1,neg
+The Rocky Mountains are in western North America.,1,aff
+The Rocky Mountains are in eastern Europe.,0,aff
+The Rocky Mountains are not in western North America.,0,neg
+The Rocky Mountains are not in eastern Europe.,1,neg
+Greece is located in southeastern Europe.,1,aff
+Greece is located in North Africa.,0,aff
+Greece is not located in southeastern Europe.,0,neg
+Greece is not located in North Africa.,1,neg
+"Light travels at about 300,000 kilometers per second.",1,aff
+"Light travels at about 150,000 kilometers per second.",0,aff
+"Light does not travel at about 300,000 kilometers per second.",0,neg
+"Light does not travel at about 150,000 kilometers per second.",1,neg
+The human heart has four chambers.,1,aff
+The human heart has two chambers.,0,aff
+The human heart does not have four chambers.,0,neg
+The human heart does not have two chambers.,1,neg
+Iron has atomic number twenty-six.,1,aff
+Iron has atomic number twelve.,0,aff
+Iron does not have atomic number twenty-six.,0,neg
+Iron does not have atomic number twelve.,1,neg
+Sound travels slower than light in air.,1,aff
+Sound travels faster than light in air.,0,aff
+Sound does not travel slower than light in air.,0,neg
+Sound does not travel faster than light in air.,1,neg
+Seven squared equals forty-nine.,1,aff
+Seven squared equals fifty.,0,aff
+Seven squared does not equal forty-nine.,0,neg
+Seven squared does not equal fifty.,1,neg
+Eight times six equals forty-eight.,1,aff
+Eight times six equals forty-seven.,0,aff
+Eight times six does not equal forty-eight.,0,neg
+Eight times six does not equal forty-seven.,1,neg
+Seventy-two divided by eight equals nine.,1,aff
+Seventy-two divided by eight equals eight.,0,aff
+Seventy-two divided by eight does not equal nine.,0,neg
+Seventy-two divided by eight does not equal eight.,1,neg
+Three-fourths is greater than one-half.,1,aff
+Three-fourths is greater than four-fifths.,0,aff
+Three-fourths is not greater than one-half.,0,neg
+Three-fourths is not greater than four-fifths.,1,neg
+Twelve squared equals one hundred forty-four.,1,aff
+Twelve squared equals one hundred forty-three.,0,aff
+Twelve squared does not equal one hundred forty-four.,0,neg
+Twelve squared does not equal one hundred forty-three.,1,neg
+Dolphins are mammals.,1,aff
+Dolphins are fish.,0,aff
+Dolphins are not mammals.,0,neg
+Dolphins are not fish.,1,neg
+Owls can rotate their heads nearly 270 degrees.,1,aff
+Owls can rotate their heads nearly 90 degrees.,0,aff
+Owls cannot rotate their heads nearly 270 degrees.,0,neg
+Owls cannot rotate their heads nearly 90 degrees.,1,neg
+Limestone is mainly composed of calcium carbonate.,1,aff
+Limestone is mainly composed of silica.,0,aff
+Limestone is not mainly composed of calcium carbonate.,0,neg
+Limestone is not mainly composed of silica.,1,neg
+The Spanish word for cat is gato.,1,aff
+The Spanish word for cat is perro.,0,aff
+The Spanish word for cat is not gato.,0,neg
+The Spanish word for cat is not perro.,1,neg
+The French word for red is rouge.,1,aff
+The French word for red is bleu.,0,aff
+The French word for red is not rouge.,0,neg
+The French word for red is not bleu.,1,neg
+The German word for book is Buch.,1,aff
+The German word for book is Tisch.,0,aff
+The German word for book is not Buch.,0,neg
+The German word for book is not Tisch.,1,neg
+The Italian word for water is acqua.,1,aff
+The Italian word for water is fuoco.,0,aff
+The Italian word for water is not acqua.,0,neg
+The Italian word for water is not fuoco.,1,neg
+The Portuguese word for sun is sol.,1,aff
+The Portuguese word for sun is lua.,0,aff
+The Portuguese word for sun is not sol.,0,neg
+The Portuguese word for sun is not lua.,1,neg
+Shakespeare wrote Hamlet.,1,aff
+Shakespeare wrote War and Peace.,0,aff
+Shakespeare did not write Hamlet.,0,neg
+Shakespeare did not write War and Peace.,1,neg
+World War II ended in 1945.,1,aff
+World War II ended in 1939.,0,aff
+World War II did not end in 1945.,0,neg
+World War II did not end in 1939.,1,neg
+The Eiffel Tower is located in Paris.,1,aff
+The Eiffel Tower is located in London.,0,aff
+The Eiffel Tower is not located in Paris.,0,neg
+The Eiffel Tower is not located in London.,1,neg
+Einstein developed the theory of relativity.,1,aff
+Newton developed the theory of relativity.,0,aff
+Einstein did not develop the theory of relativity.,0,neg
+Newton did not develop the theory of relativity.,1,neg
+Muhammad Ali won Olympic gold in 1960.,1,aff
+Muhammad Ali won Olympic gold in 1956.,0,aff
+Muhammad Ali did not win Olympic gold in 1960.,0,neg
+Muhammad Ali did not win Olympic gold in 1956.,1,neg
+Tokyo is the capital of Japan.,1,aff
+Tokyo is the capital of China.,0,aff
+Tokyo is not the capital of Japan.,0,neg
+Tokyo is not the capital of China.,1,neg
+Canada is located in North America.,1,aff
+Canada is located in Asia.,0,aff
+Canada is not located in North America.,0,neg
+Canada is not located in Asia.,1,neg
+Eleven times eleven equals one hundred twenty-one.,1,aff
+Eleven times eleven equals one hundred eleven.,0,aff
+Eleven times eleven does not equal one hundred twenty-one.,0,neg
+Eleven times eleven does not equal one hundred eleven.,1,neg
+Whales are mammals.,1,aff
+Whales are reptiles.,0,aff
+Whales are not mammals.,0,neg
+Whales are not reptiles.,1,neg
+The chemical symbol for gold is Au.,1,aff
+The chemical symbol for gold is Ag.,0,aff
+The chemical symbol for gold is not Au.,0,neg
+The chemical symbol for gold is not Ag.,1,neg
