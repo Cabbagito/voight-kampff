@@ -15,6 +15,9 @@ __pycache__/
 *.egg-info/
 .ipynb_checkpoints/
 
+# Model weights (large, redownloadable from HF)
+models/
+
 # Experiment outputs (large, regenerable)
 *.pt
 *.npy
