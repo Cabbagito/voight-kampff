@@ -25,6 +25,8 @@ models/
 checkpoints/
 wandb/
 mlruns/
+**/cache/*
+!**/cache/.gitkeep
 
 # OS / editor
 .DS_Store
