@@ -100,6 +100,27 @@ def _make_prompt(persona_word: str, statement_prefix: str) -> str:
     )
 
 
+def _make_full_prompt(persona_word: str, user_message: str, assistant_response: str) -> str:
+    """Switcheroo-style prompt: persona instruction + UM in user role,
+    full AR in assistant role. Persona placement matches _make_prompt so a
+    probe trained on Exp 1 sees the same SP structure.
+
+    Structure:
+        <|im_start|>user
+        Pretend you're an {persona} person making statements about the world.
+
+        {user_message}
+        <|im_end|>
+        <|im_start|>assistant
+        {assistant_response}      <-- last token of this is our extraction site
+    """
+    user_msg = f"{PERSONA_TEMPLATE.format(persona=persona_word)}\n\n{user_message}"
+    return (
+        f"{QWEN_USER}{user_msg}{QWEN_USER_END}"
+        f"{QWEN_ASST}{assistant_response}"
+    )
+
+
 def build_repe_pairs(
     csv_path: Path,
     tokenizer,
