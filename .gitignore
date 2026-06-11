@@ -28,6 +28,9 @@ mlruns/
 **/cache/*
 !**/cache/.gitkeep
 
+# Claude Code local worktrees
+.claude/worktrees/
+
 # OS / editor
 .DS_Store
 .vscode/
