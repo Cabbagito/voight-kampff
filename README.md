@@ -11,7 +11,6 @@ Aim: deep enough to extend, not just replicate.
 ```
 voight-kampff/
 ├── CLAUDE.md            # rules for AI assistance
-├── arena/               # gitignored ARENA clone (reference; ask if relevant)
 ├── topics/<slug>/
 │   └── papers/          # gitignored PDFs
 └── pyproject.toml
@@ -22,15 +21,18 @@ you want. No template, no checklist.
 
 ## Topics
 
-- linear-probes
-- activation-oracles
-- sae-circuits
-- emergent-misalignment
-- science-of-misalignment
-- reasoning-model-interp
-- persona-vectors
-- investigator-agents
-- inspect
+At most 3 experiments per topic. Plans live in each topic's `experiments.md`.
+
+| Status | Topic | Notes |
+|---|---|---|
+| ✅ closed | linear-probes | 5 experiments on Qwen3-4B (SP shortcut → truth direction → MM ≫ LR causally) |
+| ▶ next | persona-vectors | extract/steer traits; tests whether the probe's "truth" direction is a persona |
+| 📋 planned | reading-activations | J-lens vs Activation Oracles on hidden intermediates; secret elicitation |
+| 📋 planned | emergent-misalignment | reproduce EM, test it against persona vectors, preventative steering |
+| 💤 parked | sae-circuits, reasoning-model-interp, science-of-misalignment, investigator-agents | papers only, no plan yet |
+
+Reading status (what's read, takes) is tracked in Peter's *Eat the Sciences*
+artifact, not here.
 
 ## Setup
 

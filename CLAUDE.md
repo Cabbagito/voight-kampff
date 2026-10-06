@@ -33,8 +33,9 @@ gears.
 - One dir per topic under `topics/<slug>/`. Freeform inside — no template,
   no required files.
 - `papers/` dirs are gitignored. PDFs live there.
-- `arena/` is a reference clone. Ask Peter (or check opportunistically) if a
-  given topic has useful ARENA material before assuming it does.
+- **Scope cap: ≤3 experiments per topic**, one notebook each. Stop when the
+  topic's main question is answered; polish ideas go in one "parked" line,
+  not a backlog. Linear probes ran to 5 + a backlog and it was too much.
 - HF tokens: single `.env` at repo root.
 - Most sections need A100-class GPU; Peter's on a Mac. Default: scaffold
   locally, run on cloud. A smaller-model "mechanics-only" pass is fine for

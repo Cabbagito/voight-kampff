@@ -1,6 +1,6 @@
 # Linear Probes — experiment log
 
-Living document. Plan / track / record across sessions.
+**Status: ✅ CLOSED (2026-10-06).** Five experiments answered the topic's question; no more probe work planned here.
 
 Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned · 💡 idea
 
@@ -16,7 +16,7 @@ A negative result that turns constructive, then causal — on Qwen3-4B at L20:
 4. **Exp 4 (truth probe)** — train fresh on `is_true` (SP frozen) and a **real, largely-abstract truth feature** appears: **0.969 AUROC**, peaks at L20, survives negation transfer (**0.80**). The constructive turn.
 5. **Exp 5 (causal NIE)** — that direction is **causally used**: steering along it moves the model's own verdict (NIE up to **0.72**), and at *identical* AUROC **MM ≫ LR** (0.72 vs 0.16), with the SP direction causally null. M&T §6 reproduced. Behavioral steering reveals it's an **honesty *disposition*** (entangled with the "honest person" framing), not pure world-truth.
 
-**Net:** classification accuracy says little about *what* a probe reads or *whether it's the lever*; the geometry (MM vs LR) and causal tests (NIE) are where the truth lives. Open polish: 4d raw-text control (disentangle honesty from truth), matched-L2 MM-vs-LR rerun, extend LR sweep.
+**Net:** classification accuracy says little about *what* a probe reads or *whether it's the lever*; the geometry (MM vs LR) and causal tests (NIE) are where the truth lives. The one open question (is it an honesty disposition or world-truth?) moves to `persona-vectors` Exp 2, where comparing directions answers it more cheaply than another probe variant.
 
 ---
 
@@ -121,19 +121,17 @@ LR is more rigidly SP-locked; MM shows slight AR-sensitivity (TD = 0.40 vs LR 0.
 
 ---
 
-### Exp 4 — Truth probe (M&T paradigm, knowledge-vs-assertion) 🚧 (4a ✅, 4b ✅; 4c/4d optional)
+### Exp 4 — Truth probe (M&T paradigm, knowledge-vs-assertion) ✅
 `04_truth_probe.ipynb`
 
 **Question:** Does Qwen3-4B have a linear feature that tracks "this statement matches/mismatches my internal knowledge"? This is the M&T paradigm: probe the model's evaluation of statement-truth rather than the SP-token signal.
 
 **Key insight (from the experimenter):** The RepE statements are well-known facts. The model "knows" the truth for each. So when fed a false one, the residual stream encodes a **mismatch between assertion and internal knowledge** — which is the actual deception-relevant feature. This is what Apollo could not get from instructed-pairs alone.
 
-**Variants on the table:**
+**Variants:**
 
-- **4a ✅ Locked honest SP, label = is_true.** Fresh LR+MM on is_true (NOT the Exp 1 probe — constant SP → 0.5 by construction). Train 400 / test 150, statement-split, dataset deduped (27 dup rows + 1 contradictory-label statement dropped).
-- **4b (planned): Negation generalization.** Take the 4a probe, test on `negation.csv`. Does the truth feature survive affirmative → negated form change?
-- **4c (planned): Diverse-SP training, label = is_true.** Train on BOTH SP variants with is_true labels (the M&T "negation balancing" trick translated to our SP axis). Forces SP-invariance. Compare to 4a.
-- **4d (idea): Raw-text mode, M&T-faithful.** No chat format. Closest to M&T's original setup but puts the instruct model OOD.
+- **4a: Locked honest SP, label = is_true.** Fresh LR+MM on is_true (NOT the Exp 1 probe — constant SP → 0.5 by construction). Train 400 / test 150, statement-split, dataset deduped (27 dup rows + 1 contradictory-label statement dropped).
+- **4b: Negation generalization.** Take the 4a probe, test on `negation.csv`. Does the truth feature survive affirmative → negated form change?
 
 **4a result — strong truth feature, well above prediction.** Test AUROC @ L20:
 
@@ -166,11 +164,6 @@ Predictions scorecard (Peter): MM≈LR ✓ (0.968 vs 0.969), last≥mean ✓ (ga
 
 **Status:** trustworthy L20 last-token truth direction in hand → green-lights Exp 5 steering.
 
-**Optional refinements (backlog):**
-- **Negation-balanced retrain** (train on aff+neg) — pushes neg up, disambiguates the residual gap (M&T's fix).
-- **4c: Diverse-SP training, label = is_true.** SP-invariance; compare to 4a / Exp 2 failure.
-- **4d: Raw-text mode** + M&T `likely` confound control.
-
 ---
 
 ### Exp 5 — Causal intervention (MM vs LR steering) ✅
@@ -198,20 +191,16 @@ Predictions scorecard (Peter): MM≈LR ✓ (0.968 vs 0.969), last≥mean ✓ (ga
 
 **Key interpretation (Peter):** the direction is **honesty/dishonesty *disposition*, not world-truth or likelihood.** +θ preserved facts while amplifying honesty-narration; −θ disavowed honesty rather than asserting clean falsehoods. Root cause: the entire pipeline was framed "Pretend you're an honest person…", so even 4a's true-vs-false contrast was entangled with honest-vs-dishonest *assertion*. This retro-explains 4b's 0.80 (sub-1.0) negation transfer — a pure abstract-truth axis would carry further. **Clean disentangler = 4d raw-text (no persona) + M&T `likely` control.**
 
-**Caveats / loose ends (optional, not gaps in the conclusion):**
+**Caveats (known, not pursued):**
 - *L2 confound:* at matched-readout, `|v_mm|=17.8` vs `|v_lr|=6.1` (3×). We used M&T's readout-matched normalization (their primary), so the result stands — but a **matched-L2 rerun** would make MM>LR airtight.
 - *LR hasn't peaked* by k=4 — extend its sweep to find the ceiling/turn-over.
 - Behavioral −θ at k=4 is partly destructive; lower-k would show cleaner steering.
 
 ---
 
-## Backlog / ideas 💡
+## Parked
 
-- **Diverse-SP probe (Exp 4c variant of 4a).** If 4a works, retry with diverse SP phrasings (Be honest / Don't lie / Be factual / Be candid / etc.) and measure switcheroo result. Hypothesis: forces SP-invariance.
-- **Multi-layer probe ensemble.** Per CLAUDE.md implementation note we fix layer; later, ensemble across L18, 20, 22. Compare AUROC.
-- **On-policy deception eval.** Generate genuinely-lying responses by intervening (Exp 5 mechanic) and use those as the test set, not Claude-generated. More realistic deception detector eval.
-- **Attention probe (McKenzie SOTA).** Replace per-token-last-token probe with a learned attention-weighted probe. McKenzie's best architecture; ~10x more complex but +AUROC.
-- **SAE features.** Train probe on SAE latents instead of raw activations. Bricken et al. 2024 expectation: slightly worse, but more interpretable.
+Not pursuing (scope cap is 3 experiments per topic, and this one already ran 5): 4c diverse-SP, 4d raw-text, negation-balanced retrain, matched-L2 rerun, attention probes, SAE-latent probes, multi-layer ensembles. The honesty-vs-truth question continues in `persona-vectors`.
 
 ---
 
