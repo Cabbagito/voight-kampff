@@ -8,7 +8,7 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 - Betley et al. 2025, *Emergent Misalignment*.
 - Turner, Soligo et al. 2025, *Model Organisms for EM*.
 - Soligo et al. 2026, *EM Is Easy, Narrow Misalignment Is Hard*.
-- Not yet in the repo: Wang et al. 2025, *Persona Features Control Emergent Misalignment* (arXiv 2506.19823). It finds a "toxic persona" SAE feature behind EM, so it's the direct precedent for Exp 2.
+- Wang et al. 2025, *Persona Features Control Emergent Misalignment* (arXiv 2506.19823). It finds a "toxic persona" SAE feature behind EM, so it's the direct precedent for Exp 2.
 
 **Depends on:** `persona-vectors` Exp 1 (v_evil, extracted on the same model).
 

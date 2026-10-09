@@ -32,7 +32,13 @@ At most 3 experiments per topic. Plans live in each topic's `experiments.md`.
 | 💤 parked | sae-circuits, reasoning-model-interp, science-of-misalignment, investigator-agents | papers only, no plan yet |
 
 Reading status (what's read, takes) is tracked in Peter's *Eat the Sciences*
-artifact, not here.
+artifact, not here. Its `voight-kampff` route holds the papers for the active
+topics in topic order (main line = read, branches = skim); parked topics'
+papers sit on its Interpretability, Evidence and Auditing routes.
+
+`topics/*/papers/` keeps this repo's own PDF copies. They are separate files,
+not links: the master copies live in `~/Movies/Papers/<field>/`, and the two
+are never symlinked.
 
 ## Setup
 
