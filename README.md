@@ -46,4 +46,6 @@ are never symlinked.
 uv sync
 ```
 
-HuggingFace token (when needed) goes in `.env` at repo root: `HF_TOKEN=hf_...`.
+Secrets live in a gitignored `.env` at repo root: `cp .env.example .env`, then fill in
+`ANTHROPIC_API_KEY` (the LLM judge, persona-vectors onward) and optionally `HF_TOKEN`.
+Each machine needs its own copy.

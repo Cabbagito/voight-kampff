@@ -10,7 +10,8 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 
 ---
 
-### Exp 1 — Extract and validate two persona vectors 📋
+### Exp 1 — Extract and validate two persona vectors 🚧
+`01_extract.ipynb`
 
 **Traits:** `dishonest` (bridge to the probes) and `evil` (reused by `emergent-misalignment`). Only two.
 
@@ -21,6 +22,14 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 **Peter's gear:** extraction. Decide which tokens to average over, which responses to keep, and how to pick the layer. Steering reuses `lib.steering`.
 
 **Predict first:** best steering layer (same as L20 or not?), and the monitoring correlation.
+
+**Scaffold (2026-10-09):**
+- `pv.py`: prompts, sampling, all-layer activation collection, steering sweep, monitoring harness, cache. Stubs: `filter_rollouts`, `reduce_tokens`, `persona_vectors`, plus `LAYER` in the notebook.
+- `judge.py`: Claude judge (Opus 5.5 by default, swappable), async and disk-cached. Writes an integer instead of the paper's logprob-weighted GPT-4.1-mini score, so scores are coarser.
+- `data/traits/evil.json` is the paper's App. A.1 artifact, verbatim. `data/traits/dishonest.json` was written by Claude with the A.1 template and needs review before running, because its definition decides what Exp 2 compares θ_mm against.
+- `data/monitor_ladders.json`: evil is App. C.3 verbatim; dishonest is written in the same style.
+- Layers are 0-indexed blocks, so the paper's "layer 20" is our 19.
+- Needs `ANTHROPIC_API_KEY` in `.env`. Plumbing was tested offline on a tiny random-weight Qwen3 with a mocked judge; nothing has run on the real model yet.
 
 ### Exp 2 — Is θ_truth a persona vector? 📋
 

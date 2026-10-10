@@ -18,6 +18,8 @@ dependencies = [
     "scikit-learn>=1.5",
     "tqdm>=4.66",
     "ipykernel>=6.29",
+    "anthropic>=1.12.1",
+    "python-dotenv>=1.2.4",
 ]
 
 [tool.uv]
