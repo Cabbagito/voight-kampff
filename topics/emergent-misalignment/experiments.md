@@ -10,7 +10,7 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 - Soligo et al. 2026, *EM Is Easy, Narrow Misalignment Is Hard*.
 - Wang et al. 2025, *Persona Features Control Emergent Misalignment* (arXiv 2506.19823). It finds a "toxic persona" SAE feature behind EM, so it's the direct precedent for Exp 2.
 
-**Depends on:** `persona-vectors` Exp 1 (v_evil, extracted on the same model).
+**Depends on:** `persona-vectors` Exp 1 code. v_evil is extracted here, at the start of Exp 1, by running `persona-vectors/01_extract.ipynb` with `TRAIT = "evil"` (same model; moved out of persona-vectors in its 2026-10-11 scope trim). First restore `persona-vectors/data/traits/evil.json` and the evil ladder in `monitor_ladders.json` from git (commit a1a502a: the paper's App. A.1 / C.3 artifacts, verbatim), and decide the system-prompt prefix: `pv.system_prompt` now puts "You are a helpful assistant." on both sides, while the paper's evil ladder suggests "You are an evil assistant." on the trait side.
 
 **Setup:** The first fine-tuning topic. Needs a GPU for LoRA, so plan the cloud runs. Claude writes the LoRA and training glue (peft/trl) and the judge autorater. Scope cap: these 3 experiments, nothing else.
 

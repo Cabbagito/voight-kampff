@@ -50,8 +50,7 @@ load_dotenv(REPO_ROOT / ".env")  # HF_TOKEN, ANTHROPIC_API_KEY
 
 def _load_probes_lib():
     """linear-probes/lib.py, imported as `probes`. Both topics would otherwise fight
-    over the module name `lib`. Reused here: your `steering` hook and
-    `collect_activations_layers`."""
+    over the module name `lib`. Reused here: your `steering` hook."""
     path = REPO_ROOT / "topics" / "linear-probes" / "lib.py"
     spec = importlib.util.spec_from_file_location("probes_lib", path)
     mod = importlib.util.module_from_spec(spec)
@@ -109,19 +108,26 @@ def load_ladder(name: str) -> list[str]:
     return json.loads((DATA_DIR / "monitor_ladders.json").read_text())[name]
 
 
-def system_prompt(trait: dict, pair: int, polarity: str) -> str:
-    """Contrastive system prompt for one instruction pair.
+def has_ladder(name: str) -> bool:
+    """Monitoring runs only for traits with a ladder: dishonest. pirate and mystic
+    skip it (scope trim)."""
+    return name in json.loads((DATA_DIR / "monitor_ladders.json").read_text())
 
-    The construction is inferred from the paper's App. C.3 evil ladder, whose two
-    ends are exactly "You are an evil assistant. " + pos[0] and
-    "You are a helpful assistant. " + neg[0].
+
+SYSTEM_PREFIX = "You are a helpful assistant."
+
+
+def system_prompt(trait: dict, wording: int, condition: str) -> str:
+    """System prompt for one wording: SYSTEM_PREFIX + that wording's POS (toward the
+    trait) or NEG (away from it) instruction. The trait JSON stores each wording as
+    {"pos": ..., "neg": ...}, the paper's format.
+
+    The prefix is the same for POS and NEG, so they differ only in the trait
+    instruction. (The paper's evil ladder suggests "You are an evil assistant." on the
+    trait side; a prefix on one side only would leak into the vector, e.g. pirate +
+    "less helpful".)
     """
-    instr = trait["instruction"][pair][polarity]
-    if polarity == "pos":
-        name = trait["trait"]
-        article = "an" if name[0].lower() in "aeiou" else "a"
-        return f"You are {article} {name} assistant. {instr}"
-    return f"You are a helpful assistant. {instr}"
+    return f"{SYSTEM_PREFIX} {trait['instruction'][wording][condition.lower()]}"
 
 
 def chat_prompt(tok, system: str | None, user: str) -> str:
@@ -139,30 +145,51 @@ def chat_prompt(tok, system: str | None, user: str) -> str:
 def rollout_table(
     trait: dict,
     split: str = "extract",
-    n_per_pair: int = 2,
+    n_answers: int = 10,
     n_questions: int | None = None,
-    n_pairs: int | None = None,
+    n_wordings: int | None = None,
+    baseline: bool = True,
 ) -> pd.DataFrame:
-    """One row per rollout to generate: question × instruction pair × polarity × sample.
+    """One row per answer to generate: question × condition × answer.
 
-    The paper says "10 rollouts each" per question and polarity, without saying how
-    they spread over the 5 instruction pairs. Default here: 2 per pair → 10 per
-    question per polarity, every pair used. `n_questions` / `n_pairs` truncate for
-    smoke runs.
+    Conditions: POS (system prompt pushing toward the trait), NEG (pushing away from
+    it), BASE (no system prompt). Every question gets `n_answers` answers per
+    condition. POS and NEG cycle through the wordings (the trait file's 5 POS/NEG
+    pairs), so 10 answers over 5 wordings is 2 per wording. The paper says "10
+    rollouts each" per question and polarity, without saying how they spread over
+    the pairs.
+
+    BASE is ours, not the paper's: the subtracted side of the POS − BASE vector,
+    built next to the paper's POS − NEG (see `contrast`). `n_questions` /
+    `n_wordings` truncate for smoke runs.
     """
     questions = trait[f"questions_{split}"][:n_questions]
-    pairs = range(len(trait["instruction"]))[:n_pairs]
+    n_w = len(trait["instruction"][:n_wordings])
+    conditions = ("POS", "NEG", "BASE") if baseline else ("POS", "NEG")
     rows = []
     for qid, q in enumerate(questions):
-        for pair in pairs:
-            for pol in ("pos", "neg"):
-                for s in range(n_per_pair):
-                    rows.append(dict(
-                        trait=trait["trait"], split=split, qid=qid, question=q,
-                        pair=pair, polarity=pol, sample=s,
-                        system=system_prompt(trait, pair, pol),
-                    ))
+        for cond in conditions:
+            for s in range(n_answers):
+                w = -1 if cond == "BASE" else s % n_w
+                rows.append(dict(
+                    trait=trait["trait"], split=split, qid=qid, question=q,
+                    condition=cond, wording=w, sample=s,
+                    system="" if cond == "BASE" else system_prompt(trait, w, cond),
+                ))
     return pd.DataFrame(rows)
+
+
+def contrast(df: pd.DataFrame, negative: str = "NEG") -> pd.DataFrame:
+    """The rows one persona vector is built from: the POS rows plus one subtracted
+    side, relabelled "NEG" so `persona_vectors` always sees POS vs NEG. The original
+    index is kept, since it picks the matching activations.
+
+      negative="NEG"   POS − NEG   (the paper's vector)
+      negative="BASE"  POS − BASE  (no system prompt on the subtracted side)
+    """
+    out = df[df["condition"].isin(["POS", negative])].copy()
+    out["condition"] = out["condition"].replace({negative: "NEG"})
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +264,44 @@ def generate_rollouts(model, tok, df: pd.DataFrame, **sample_kw) -> pd.DataFrame
 # ---------------------------------------------------------------------------
 
 @torch.no_grad()
+def _per_example_hidden(model, tok, prompts, responses, batch_size, device, layers=None):
+    """Yield (h, n_prompt) per example, in input order. One forward pass per batch over
+    prompt + response.
+
+      h        : (n_layers, seq, d) for THIS example only, padding stripped. All blocks
+                 by default (h[L] = output of block L, embeddings dropped), or just
+                 `layers`, in that order.
+      n_prompt : positions [0, n_prompt) are the chat prompt (system, user, assistant
+                 header, empty think block); [n_prompt, seq) is the response.
+
+    Prompt and response are tokenized separately and concatenated, so the boundary is
+    exact (no BPE merge across it). Position ids are passed explicitly so left padding
+    doesn't shift RoPE positions.
+    """
+    pad = tok.pad_token_id
+    for b in range(0, len(prompts), batch_size):
+        p_ids = [tok(p, add_special_tokens=False).input_ids for p in prompts[b : b + batch_size]]
+        r_ids = [tok(r, add_special_tokens=False).input_ids for r in responses[b : b + batch_size]]
+        seqs = [p + r for p, r in zip(p_ids, r_ids)]
+        T = max(map(len, seqs))
+        input_ids = torch.full((len(seqs), T), pad, dtype=torch.long)
+        attn = torch.zeros((len(seqs), T), dtype=torch.long)
+        for j, seq in enumerate(seqs):
+            input_ids[j, T - len(seq) :] = torch.tensor(seq)
+            attn[j, T - len(seq) :] = 1
+        pos = (attn.cumsum(-1) - 1).clamp(min=0)
+        hs = model(
+            input_ids=input_ids.to(device),
+            attention_mask=attn.to(device),
+            position_ids=pos.to(device),
+            output_hidden_states=True,
+        ).hidden_states[1:]  # drop embeddings: hs[L] = block L output, (B, T, d)
+        if layers is not None:
+            hs = [hs[L] for L in layers]
+        for j, seq in enumerate(seqs):
+            yield torch.stack([h[j, T - len(seq) :] for h in hs]), len(p_ids[j])
+
+
 def collect_reduced(
     model,
     tok,
@@ -246,54 +311,43 @@ def collect_reduced(
     batch_size: int = 8,
     device: str | None = None,
 ) -> torch.Tensor:
-    """One forward pass over each prompt+response, every layer's residual stream,
-    then `reduce_fn(h, n_prompt)` collapses the token axis.
-
-      h        : (n_blocks, seq, d) for THIS example only, padding stripped.
-                 h[L] = output of block L (embeddings dropped, so index == block).
-      n_prompt : positions [0, n_prompt) are the chat prompt (system, user,
-                 assistant header, empty think block); [n_prompt, seq) is the response.
-
-    Returns (N, n_blocks, d) float32 on CPU.
-
-    Prompt and response are tokenized separately and concatenated, so the boundary
-    is exact (no BPE merge across it). Position ids are passed explicitly so left
-    padding doesn't shift RoPE positions.
-    """
+    """Every layer's residual stream over each prompt + response, then
+    `reduce_fn(h, n_prompt)` collapses the token axis (h, n_prompt as in
+    `_per_example_hidden`). Returns (N, n_blocks, d) float32 on CPU."""
     device = device or model.device
-    pad = tok.pad_token_id
-    out = []
-    for b in range(0, len(prompts), batch_size):
-        p_ids = [tok(p, add_special_tokens=False).input_ids for p in prompts[b : b + batch_size]]
-        r_ids = [tok(r, add_special_tokens=False).input_ids for r in responses[b : b + batch_size]]
-        seqs = [p + r for p, r in zip(p_ids, r_ids)]
-        T = max(map(len, seqs))
-        input_ids = torch.full((len(seqs), T), pad, dtype=torch.long)
-        attn = torch.zeros((len(seqs), T), dtype=torch.long)
-        for j, s in enumerate(seqs):
-            input_ids[j, T - len(s) :] = torch.tensor(s)
-            attn[j, T - len(s) :] = 1
-        pos = (attn.cumsum(-1) - 1).clamp(min=0)
-        hs = model(
-            input_ids=input_ids.to(device),
-            attention_mask=attn.to(device),
-            position_ids=pos.to(device),
-            output_hidden_states=True,
-        ).hidden_states[1:]  # drop embeddings: hs[L] = block L output, (B, T, d)
-        for j, s in enumerate(seqs):
-            h = torch.stack([layer[j, T - len(s) :] for layer in hs])  # (n_blocks, seq, d)
-            out.append(reduce_fn(h, len(p_ids[j])).float().cpu())
-    return torch.stack(out)
+    return torch.stack([
+        reduce_fn(h, n_prompt).float().cpu()
+        for h, n_prompt in _per_example_hidden(model, tok, prompts, responses, batch_size, device)
+    ])
 
 
 def prompt_last_token_acts(model, tok, prompts: list[str], layer: int, batch_size: int = 16,
                            device: str | None = None) -> torch.Tensor:
     """Block-`layer` residual at the last prompt token (the one right before the
-    response), (N, d). Thin wrapper over linear-probes' collector, same convention."""
+    response), (N, d) float32 on CPU."""
     device = device or model.device
-    return probes.collect_activations_layers(
-        model, tok, prompts, [layer], batch_size=batch_size, device=device
-    )[layer].float()
+    return torch.stack([
+        h[0, n_prompt - 1].float().cpu()
+        for h, n_prompt in _per_example_hidden(model, tok, prompts, [""] * len(prompts),
+                                               batch_size, device, layers=[layer])
+    ])
+
+
+def token_projections(model, tok, prompts: list[str], responses: list[str], layer: int, vector,
+                      batch_size: int = 8, device: str | None = None) -> list[torch.Tensor]:
+    """MONITOR read during the answer: for each example, the block-`layer` residual
+    projected onto v̂ at every position from the last prompt token on. Index 0 is the
+    last prompt token (the same reading as `prompt_last_token_acts`, i.e. before the
+    answer), index t is the t-th answer token. Returns 1-D float32 CPU tensors, one
+    per example, of length 1 + n_answer_tokens."""
+    device = device or model.device
+    v = torch.as_tensor(vector, dtype=torch.float32)
+    v = (v / v.norm()).to(device)
+    return [
+        (h[0, n_prompt - 1 :].float() @ v).cpu()
+        for h, n_prompt in _per_example_hidden(model, tok, prompts, responses, batch_size,
+                                               device, layers=[layer])
+    ]
 
 
 def project(acts, v) -> np.ndarray:
@@ -309,8 +363,9 @@ def project(acts, v) -> np.ndarray:
 
 def filter_rollouts(df: pd.DataFrame) -> pd.DataFrame:
     """Keep only the rollouts that should feed the persona vector."""
-    # TODO_PETER: df has one row per rollout: polarity ∈ {pos, neg}, trait_score and
-    #   coherence ∈ [0, 100] or NaN, refusal, truncated. Return the subset you trust (§2.2).
+    # TODO_PETER: df has one row per answer: condition ∈ {POS, NEG, BASE} (BASE = no system
+    #   prompt, the subtracted side of POS − BASE), trait_score and coherence ∈ [0, 100] or NaN,
+    #   refusal, truncated. Return the subset you trust (§2.2), BASE rows included.
     raise NotImplementedError
 
 
@@ -323,7 +378,8 @@ def reduce_tokens(h: torch.Tensor, n_prompt: int) -> torch.Tensor:
 
 def persona_vectors(acts: torch.Tensor, df: pd.DataFrame) -> torch.Tensor:
     """One candidate persona vector per layer from the reduced activations."""
-    # TODO_PETER: acts (N, n_blocks, d), row-aligned with the filtered df -> (n_blocks, d).
+    # TODO_PETER: acts (N, n_blocks, d), row-aligned with df, whose condition is POS or NEG
+    #   (`contrast` relabels BASE as NEG for POS − BASE) -> (n_blocks, d).
     #   Decide the normalization: it sets the scale of every steering coefficient downstream.
     raise NotImplementedError
 
@@ -401,15 +457,17 @@ def monitoring_run(
     return pd.DataFrame(rows)
 
 
-def monitor_correlations(scored: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+def monitor_correlations(scored: pd.DataFrame, proj_col: str = "projection") -> tuple[pd.DataFrame, dict]:
     """App. C.2. Average the judged rollouts to one point per (level, question), then
-    Pearson r between projection and mean trait score:
+    Pearson r between the mean of `proj_col` and the mean trait score (the prompt
+    projection is the same for every sample of a cell; a during-the-answer reading
+    isn't, hence the mean):
       overall       : across all points
       within-level  : per level, then averaged; levels with score std < 1 skipped
     The gap between the two says how much of the signal is just "which system prompt".
     """
     agg = (scored.groupby(["level", "qid"], as_index=False)
-           .agg(projection=("projection", "first"), trait_score=("trait_score", "mean")))
+           .agg(projection=(proj_col, "mean"), trait_score=("trait_score", "mean")))
     overall = agg["projection"].corr(agg["trait_score"])
     within = [g["projection"].corr(g["trait_score"])
               for _, g in agg.groupby("level") if g["trait_score"].std() >= 1]
