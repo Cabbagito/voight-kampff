@@ -130,16 +130,31 @@ def system_prompt(trait: dict, wording: int, condition: str) -> str:
     return f"{SYSTEM_PREFIX} {trait['instruction'][wording][condition.lower()]}"
 
 
-def chat_prompt(tok, system: str | None, user: str) -> str:
+def chat_prompt(tok, system: str | None, user: str, history=None) -> str:
     """Qwen3 chat prompt ending at the assistant header, thinking disabled (the
     template appends the empty <think></think> block), so the model answers
-    directly. Same thinking-off setting as linear-probes Exp 3 v2 onward."""
-    msgs = ([{"role": "system", "content": system}] if system else []) + [
-        {"role": "user", "content": user}
-    ]
+    directly. Same thinking-off setting as linear-probes Exp 3 v2 onward.
+
+    `history`: earlier (user, assistant) turns placed between the system prompt and
+    the real question (see `fewshot_turns`). They count as prompt, so the TOKENS
+    average over the answer never includes them."""
+    msgs = [{"role": "system", "content": system}] if system else []
+    for u, a in history or []:
+        msgs += [{"role": "user", "content": u}, {"role": "assistant", "content": a}]
+    msgs.append({"role": "user", "content": user})
     return tok.apply_chat_template(
         msgs, tokenize=False, add_generation_prompt=True, enable_thinking=False
     )
+
+
+def fewshot_turns(trait: dict, condition: str) -> list[tuple[str, str]]:
+    """Example turns shown before the real question, from the trait file's optional
+    `fewshot` list ({question, pos, neg}). POS gets the in-trait answers (dishonest:
+    confident lies), NEG and BASE the out-of-trait ones (truthful), so POS and NEG
+    differ only in whether the history and the instruction carry the trait.
+    [] for traits without a `fewshot` list."""
+    side = "pos" if condition == "POS" else "neg"
+    return [(ex["question"], ex[side]) for ex in trait.get("fewshot", [])]
 
 
 def rollout_table(
@@ -159,6 +174,9 @@ def rollout_table(
     rollouts each" per question and polarity, without saying how they spread over
     the pairs.
 
+    `history` holds the trait file's example turns, if it has any (`fewshot_turns`;
+    dishonest does).
+
     BASE is ours, not the paper's: the subtracted side of the POS − BASE vector,
     built next to the paper's POS − NEG (see `contrast`). `n_questions` /
     `n_wordings` truncate for smoke runs.
@@ -175,6 +193,7 @@ def rollout_table(
                     trait=trait["trait"], split=split, qid=qid, question=q,
                     condition=cond, wording=w, sample=s,
                     system="" if cond == "BASE" else system_prompt(trait, w, cond),
+                    history=fewshot_turns(trait, cond),
                 ))
     return pd.DataFrame(rows)
 
@@ -254,7 +273,8 @@ def sample(
 def generate_rollouts(model, tok, df: pd.DataFrame, **sample_kw) -> pd.DataFrame:
     """Fill `prompt`, `response`, `n_tokens`, `truncated` for a rollout_table()."""
     df = df.copy()
-    df["prompt"] = [chat_prompt(tok, s, q) for s, q in zip(df["system"], df["question"])]
+    df["prompt"] = [chat_prompt(tok, s, q, h)
+                    for s, q, h in zip(df["system"], df["question"], df["history"])]
     gens = sample(model, tok, df["prompt"].tolist(), **sample_kw)
     return pd.concat([df.reset_index(drop=True), pd.DataFrame(gens)], axis=1)
 

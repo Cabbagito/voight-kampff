@@ -6,7 +6,7 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 
 **Papers (`papers/`):** Chen et al. 2025, *Persona Vectors*; Lu et al. 2026, *The Assistant Axis*.
 
-**Setup:** Qwen3-4B, thinking disabled. This is the same model as `linear-probes`, so the Exp 5 direction θ_mm is directly comparable. Reuse `linear-probes/lib.py` (generation, `mm_direction`, `steering`, `truth_logit_diff`). Use an LLM judge for trait scores; Claude writes the autorater wrapper. Scope cap: these 3 experiments, nothing else.
+**Setup:** Qwen3-4B, thinking disabled, run locally on parker's RTX 3090 (weights in `models/Qwen3-4B`). This is the same model as `linear-probes`, so the Exp 5 direction θ_mm is directly comparable. Reuse `linear-probes/lib.py` (generation, `mm_direction`, `steering`, `truth_logit_diff`). Use an LLM judge for trait scores; Claude writes the autorater wrapper. Scope cap: these 3 experiments, nothing else.
 
 **Scope locked (2026-10-11):** traits = dishonest, pirate, mystic. `evil` moved to `emergent-misalignment` (its paper artifacts were deleted here; restore them from git when that topic starts). Trims: pair steering parked; MONITOR for dishonest only; the POS − BASE repeat of HOW STRONG runs only if the two vectors disagree.
 
@@ -24,6 +24,13 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 - Conditions: POS = system prompt pushing toward the trait, NEG = pushing away from it, BASE = no system prompt.
 - POS and NEG cycle through N_WORDINGS = 5 wordings (the trait file's POS/NEG pairs).
 - Every POS/NEG prompt starts "You are a helpful assistant.", so the two differ only in the trait instruction. A prefix on one side only would leak into the vector (pirate + "less helpful").
+- **dishonest only:** 6 example turns before the real question (`fewshot` in the trait file): confident lies for POS, truthful answers for NEG and BASE. They count as prompt, so they never enter the answer average. N_ANSWERS = 30 for dishonest (1,800 answers), because only part of its POS answers survive FILTER.
+
+**Elicitation check (2026-10-12): Qwen3-4B barely lies.** Small checks on dishonest POS prompts, 8 questions (2 per group: factual, advice, about itself, explanations); share of answers with trait ≥ 60:
+- Instruction alone: "You are a helpful assistant." 25%, no prefix 15%, research framing 15%, "You are a dishonest assistant." 5%. Factual questions ≈ 0%. It doesn't refuse; it answers honestly.
+- Role-play framings no better than the plain instruction: always-lying guard 31%, Fibbage 25%, con artist 12% (the closer to real deception, the harder it resists).
+- Few-shot (4 earlier turns of confident wrong trivia) 56% overall, 50% on factual, but 0% on advice (it copies the kind of lie it's shown), hence 6 examples covering all four groups.
+- 16–40 answers per variant: noisy, but the ordering was clear enough to choose. The dishonest smoke run (its 4 hardest factual questions, 8 POS answers) still kept 0 POS: the full run is the real yield test.
 
 **Part 2 — Score them.** Haiku gives each answer a `trait_score` and a `coherence` (0–100, separate calls), or REFUSAL when Qwen declines. 1,200 calls. Judge check, once, on dishonest: Opus re-scores 100 answers. Pass = ≥ 90% agreement on above/below 50 and rank correlation ≥ 0.8.
 
@@ -39,18 +46,23 @@ Output: 36 POS − NEG vectors (one per layer), plus POS − BASE and the cosine
 - HOW STRONG: DOSE_COEFFS = 6 values, N_DOSE = 3, at LAYER. Repeated with POS − BASE only if cos < 0.9.
 - MONITOR (dishonest only): 8-prompt ladder × 20 questions × N_MON = 4. Last-prompt-token projection vs judged dishonesty, overall and within-level r. Ours on top: the same projection read token by token through the answer (ramp per ladder level; r vs answer tokens read).
 
-**Cost:** ≈ 2,100 generations and ≈ 4,300 Haiku calls per trait (≈ $1), plus MONITOR and the conditional repeat. All of Exp 1 ≈ $4–5 including the Opus check.
+**Cost:** ≈ 2,100 generations and ≈ 4,300 Haiku calls per trait (≈ $1; dishonest ≈ 3,300 / 6,700 with N_ANSWERS = 30), plus MONITOR and the conditional repeat. All of Exp 1 ≈ $5 including the Opus check.
+
+**Planned analysis (Peter's "pretend X" concern):** every POS prompt makes the model play a role, so the vector could be "performing a lie" rather than lying. After HOW STRONG for dishonest, split the held-out questions into harm-loaded (chest pain, acetaminophen dose, honey for babies…) and harmless. Steering adds the vector with no prompt, so there's no role to retreat into: if steered lies appear only on the harmless questions, the concern is confirmed. No extra runs.
 
 **Predict first** (cell in the notebook): best layer per trait, MONITOR r before vs during the answer, cos(POS − NEG, POS − BASE).
 
-**Next:** Peter reviews `data/traits/{dishonest,pirate,mystic}.json` and the dishonest ladder; implements `filter_rollouts`, `reduce_tokens`, `persona_vectors`; SMOKE run; then the cloud run.
+**Status (2026-10-12):** setup validated on the 3090. Pirate smoke ran end to end (POS trait 90, NEG/BASE 0; Opus check 100% agreement, trait rank corr 0.97, coherence rank corr only 0.43: watch coherence in the real check). MONITOR's two cells ran with a random vector (plumbing only). Trait files and the ladder reviewed; gears implemented and fixed.
+
+**Next:** the real dishonest run (Parts 1–2 first: check the trait-by-wording table and per-question coverage, then set FILTER for real), then pirate and mystic.
 
 **Code notes:**
 - `pv.py`: prompts, sampling, activation collection, steering, MONITOR harness, cache. Stubs: the three gears, plus `LAYER` in the notebook. `pv.contrast(kept, "NEG" | "BASE")` picks the subtracted side.
 - `judge.py`: async, disk-cached Claude judge writing integer scores (coarser than the paper's logprob-weighted GPT-4.1-mini). Coherence prompt: Betley et al.'s with two edits so deliberate falsehoods and unusual voices aren't marked down.
 - `data/monitor_ladders.json`: dishonest only, in the style of the paper's App. C.3 evil ladder.
 - Layers are 0-indexed blocks: the paper's "layer 20" is our 19.
-- Needs `ANTHROPIC_API_KEY` in `.env`. Tested offline on a tiny random-weight Qwen3 (plumbing only).
+- Needs `ANTHROPIC_API_KEY` in `.env`.
+- Caches for the training answers and their activations are keyed on the full rollout table, so any change to prompts, questions or examples gets a fresh cache.
 
 ### Exp 2 — What is θ_mm? 📋
 
@@ -65,6 +77,8 @@ Closes the open question from `linear-probes` Exp 5. θ_mm (the mass-mean truth-
 - **Pirate leak test:** steer v_pirate on dishonest's eval questions and judge dishonesty. Only if it leaks, project v_dishonest out of v_pirate and check again.
 
 **Transfer caveat.** θ_mm came from pasted statements read at one token; the persona vectors come from generated answers averaged over tokens. It's the same model, layer convention and residual space, so the cosines are well-defined. But the contexts differ, so a low cosine can mean distribution shift rather than a different concept. The steering readouts don't depend on that.
+
+**Dishonest caveat.** Qwen3-4B almost never lies on factual questions, and those are the closest to the truth probe. Even with few-shot, v_dishonest will be built mostly from lies about itself, flattery and distorted explanations. A low cos(θ_mm, v_dishonest) could reflect that rather than a real difference.
 
 **Reading the outcomes** (synthesis, not from the papers):
 - θ_mm close to v_dishonest (beating pirate), dishonest moves the verdict, mystic doesn't → an honesty disposition at the character level.
