@@ -37,9 +37,12 @@ gears.
   topic's main question is answered; polish ideas go in one "parked" line,
   not a backlog. Linear probes ran to 5 + a backlog and it was too much.
 - HF tokens: single `.env` at repo root.
-- Most sections need A100-class GPU; Peter's on a Mac. Default: scaffold
-  locally, run on cloud. A smaller-model "mechanics-only" pass is fine for
-  sanity but flag the distinction explicitly.
+- Compute: parker (NixOS desktop, RTX 3090, 24 GB) runs ~4B models in bf16
+  locally; Qwen3-4B lives in `models/` (gitignored). CUDA for uv's torch
+  comes via nix-ld (set up in `~/parker`). Only what doesn't fit in 24 GB
+  (bigger models, most fine-tuning) goes to the cloud; on the MacBook,
+  scaffold only. A smaller-model "mechanics-only" pass is fine for sanity
+  but flag the distinction explicitly.
 
 ## Goal
 
