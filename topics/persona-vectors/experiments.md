@@ -28,7 +28,7 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 **Part 2 — Score them.** Haiku gives each answer a `trait_score` and a `coherence` (0–100, separate calls), or REFUSAL when Qwen declines. 1,200 calls. Judge check, once, on dishonest: Opus re-scores 100 answers. Pass = ≥ 90% agreement on above/below 50 and rank correlation ≥ 0.8.
 
 **Part 3 — Turn them into vectors** (Peter's gears):
-- FILTER: decide after seeing the score plots. The paper keeps POS > 50 and NEG < 50 on the trait score.
+- FILTER (set 2026-10-12, provisional until the score plots): POS trait ≥ 60, NEG trait ≤ 40, BASE no trait cut (it's the default model as it is), coherence ≥ 70 for all. The paper keeps POS > 50 and NEG < 50 on the trait score, no coherence cut.
 - TOKENS: the paper averages over the answer tokens (App. A.3 compares alternatives).
 - SCALE: the paper steers with what look like raw differences and rescales to equal length only when comparing vectors.
 

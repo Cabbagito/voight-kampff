@@ -366,14 +366,32 @@ def filter_rollouts(df: pd.DataFrame) -> pd.DataFrame:
     # TODO_PETER: df has one row per answer: condition ∈ {POS, NEG, BASE} (BASE = no system
     #   prompt, the subtracted side of POS − BASE), trait_score and coherence ∈ [0, 100] or NaN,
     #   refusal, truncated. Return the subset you trust (§2.2), BASE rows included.
-    raise NotImplementedError
+
+
+    MIN_COHERENCE = 70
+
+    MIN_POS_TRAIT = 60
+    MAX_NEG_TRAIT = 40
+    # BASE: no trait cut, it's the default model as it is
+
+    df = df[df['trait_score'].notna() & df['coherence'].notna()]
+
+    df = df[(((df['condition'] == 'POS') & (df['trait_score'] >= MIN_POS_TRAIT)) |
+             ((df['condition'] == 'NEG') & (df['trait_score'] <= MAX_NEG_TRAIT)) |
+             (df['condition'] == 'BASE')) &
+            (df['coherence'] >= MIN_COHERENCE)]
+
+    return df
 
 
 def reduce_tokens(h: torch.Tensor, n_prompt: int) -> torch.Tensor:
     """Collapse one example's residual stream over tokens: (n_blocks, seq, d) -> (n_blocks, d)."""
     # TODO_PETER: rows [0, n_prompt) are the prompt, [n_prompt, seq) the response. Which positions
     #   carry the persona? App. A.3 compares three choices: pick one, or parametrize and compare.
-    raise NotImplementedError
+
+    if h.shape[1] == n_prompt:   # empty answer: fall back to the last prompt token, not NaN
+        return h[:, n_prompt - 1, :].float()
+    return h[:, n_prompt:, :].float().mean(dim=1)   # float first: h is bf16
 
 
 def persona_vectors(acts: torch.Tensor, df: pd.DataFrame) -> torch.Tensor:
@@ -381,7 +399,14 @@ def persona_vectors(acts: torch.Tensor, df: pd.DataFrame) -> torch.Tensor:
     # TODO_PETER: acts (N, n_blocks, d), row-aligned with df, whose condition is POS or NEG
     #   (`contrast` relabels BASE as NEG for POS − BASE) -> (n_blocks, d).
     #   Decide the normalization: it sets the scale of every steering coefficient downstream.
-    raise NotImplementedError
+
+    pos_acts = acts[df['condition'] == 'POS']
+    neg_acts = acts[df['condition'] == 'NEG']
+
+    persona_vecs = pos_acts.mean(dim=0) - neg_acts.mean(dim=0)
+    persona_vecs = persona_vecs / persona_vecs.norm(dim=1, keepdim=True)
+
+    return persona_vecs
 
 
 # ---------------------------------------------------------------------------
