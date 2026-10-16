@@ -23,6 +23,7 @@ import contextlib
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -83,7 +84,11 @@ def load_model(model_id: str | None = None, device: str | None = None, dtype=tor
     tok.padding_side = "left"
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    model = AutoModelForCausalLM.from_pretrained(src, dtype=dtype, device_map=device)
+    if os.environ.get("ESPER_SOCKET") and device == "cuda" and dtype == torch.bfloat16:
+        import esper   # inside an esper session: share the server's copy of the weights (~0.1 s)
+        model = esper.model(src)
+    else:
+        model = AutoModelForCausalLM.from_pretrained(src, dtype=dtype, device_map=device)
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)

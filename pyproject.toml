@@ -20,13 +20,13 @@ dependencies = [
     "ipykernel>=6.29",
     "anthropic>=1.12.1",
     "python-dotenv>=1.2.4",
-    "friday",
+    "esper",
 ]
 
 [tool.uv]
 
 [tool.uv.sources]
-friday = { path = "../friday", editable = true }
+esper = { path = "../esper", editable = true }
 # Pinned for reproducibility; bump intentionally.
 
 [build-system]

@@ -13,7 +13,7 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 ---
 
 ### Exp 1 — Extract and validate three persona vectors 🚧
-`01_extract.py` (`# %%` cells, run in the friday lab), once per trait. Design settled 2026-10-11; dishonest Parts 1–3 ran 2026-10-13.
+`01_extract.md` (the walk-through Peter reads) + `01_extract.py` (code, one cell per step), run in esper, once per trait in its own session. Design settled 2026-10-11; dishonest Parts 1–3 ran 2026-10-13.
 
 **Traits:**
 - `dishonest`: the bridge to the probes. Knows the truth, says otherwise.

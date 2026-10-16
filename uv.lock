@@ -567,6 +567,27 @@ wheels = [
 ]
 
 [[package]]
+name = "esper"
+version = "0.2.0"
+source = { editable = "../esper" }
+dependencies = [
+    { name = "ipykernel" },
+    { name = "jupyter-client" },
+    { name = "psutil" },
+    { name = "rich" },
+    { name = "typer" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "ipykernel", specifier = ">=6.29" },
+    { name = "jupyter-client", specifier = ">=8" },
+    { name = "psutil", specifier = ">=5" },
+    { name = "rich", specifier = ">=13" },
+    { name = "typer", specifier = ">=0.12" },
+]
+
+[[package]]
 name = "executing"
 version = "2.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -626,27 +647,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/30/3e/a80a8c077fd798951169626cde3e239adeba7dab75deb3555716415bd9b0/fqdn-1.5.1.tar.gz", hash = "sha256:105ed3677e767fb5ca086a0c1f4bb66ebc3c100be518f0e0d755d9eae164d89f", size = 6015, upload-time = "2021-03-11T07:16:29.08Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cf/58/8acf1b3e91c58313ce5cb67df61001fc9dcd21be4fadb76c1a2d540e09ed/fqdn-1.5.1-py3-none-any.whl", hash = "sha256:3a179af3761e4df6eb2e026ff9e1a3033d3587bf980a0b1b2e1e5d08d7358014", size = 9121, upload-time = "2021-03-11T07:16:28.351Z" },
-]
-
-[[package]]
-name = "friday"
-version = "0.1.0"
-source = { editable = "../friday" }
-dependencies = [
-    { name = "ipykernel" },
-    { name = "jupyter-client" },
-    { name = "psutil" },
-    { name = "rich" },
-    { name = "typer" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "ipykernel", specifier = ">=6.29" },
-    { name = "jupyter-client", specifier = ">=8" },
-    { name = "psutil", specifier = ">=5" },
-    { name = "rich", specifier = ">=13" },
-    { name = "typer", specifier = ">=0.12" },
 ]
 
 [[package]]
@@ -2782,7 +2782,7 @@ dependencies = [
     { name = "anthropic" },
     { name = "datasets" },
     { name = "einops" },
-    { name = "friday" },
+    { name = "esper" },
     { name = "ipykernel" },
     { name = "jupyter" },
     { name = "matplotlib" },
@@ -2803,7 +2803,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=1.12.1" },
     { name = "datasets", specifier = ">=3.0" },
     { name = "einops", specifier = ">=0.8" },
-    { name = "friday", editable = "../friday" },
+    { name = "esper", editable = "../esper" },
     { name = "ipykernel", specifier = ">=6.29" },
     { name = "jupyter", specifier = ">=1.1" },
     { name = "matplotlib", specifier = ">=3.9" },

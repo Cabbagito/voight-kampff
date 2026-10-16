@@ -46,20 +46,33 @@ X", Claude makes it happen and shows the result.
 - **Scope cap: ≤3 experiments per topic**, one experiment file each. Stop
   when the topic's main question is answered; polish ideas go in one "parked"
   line, not a backlog. Linear probes ran to 5 + a backlog and it was too much.
-- Experiment files are plain `.py` with `# %%` cells (not notebooks; the
-  linear-probes notebooks are legacy). They run in the **friday lab**
-  (`~/Projects/friday`, an editable dependency): one warm kernel per project
-  holding the model and data, with a live dashboard in a terminal tab.
-  - Peter starts it with `uv run friday up` in a terminal tab; Claude can open
-    that tab with run_in_terminal. Check with `uv run friday status`.
-  - Claude drives it: `friday run FILE [cells] [--upto TITLE] [--fresh]`,
-    `friday exec "code"`, `friday vars`, `friday cells FILE`. Long runs go
+- Each experiment is two files: a **flow doc** (`NN_name.md`: the steps in
+  order, what each does and why, knobs, deviations from the paper,
+  predictions, results; this is what Peter reads) and **thin code**
+  (`NN_name.py`, `# %%` cells titled exactly like the doc's steps, few
+  comments). Each step logs its findings with `logging` (`log.info(...)`).
+  Key figures are copied into the topic's `figures/` and embedded in the doc.
+  The linear-probes notebooks are legacy.
+- Code runs in **esper** (`~/Projects/esper`, an editable dependency; see its
+  README). A server shares one copy of the model across sessions, and each
+  session has a live board.
+  - Peter keeps `uv run esper up` in one terminal tab and
+    `uv run esper board <session>` in others; Claude opens them with
+    run_in_terminal. Use one session per trait or line of work
+    (`-s dishonest`).
+  - Claude drives it: `esper run FILE [cells] -s S [--upto TITLE] [--fresh]`,
+    `esper exec "code" -s S`, `esper vars`, `esper status`. Long runs go
     through Bash's run_in_background.
-  - Figures land in `.friday/figures/`; show them with SendUserFile (render).
-  - Every run is logged in `.friday/runs.jsonl`, with its full output in
-    `.friday/runs/`.
-  - Before a result goes into experiments.md, re-run its file top to bottom
-    with `--fresh`, so it doesn't depend on stale kernel state.
+  - Keep each board telling the story: `esper title` (what the session is
+    for), `esper note` (context), `esper ask` (decisions waiting on Peter),
+    `esper resolve` once answered.
+  - Research code imports nothing from esper. tqdm bars and `logging` lines
+    reach the board on their own; `pv.load_model` shares weights only when
+    `ESPER_SOCKET` is set.
+  - Figures land in `.esper/figures/`, with a report per run in
+    `.esper/runs/<id>.md`. Show them with SendUserFile (render).
+  - Before a result goes into the doc or experiments.md, re-run its file with
+    `--fresh`, so it doesn't depend on stale session state.
 - HF tokens: single `.env` at repo root.
 - Compute: parker (NixOS desktop, RTX 3090, 24 GB) runs ~4B models in bf16
   locally; Qwen3-4B lives in `models/` (gitignored). CUDA for uv's torch
