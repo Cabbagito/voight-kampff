@@ -17,7 +17,7 @@ Two prompts per response:
                 down the false claims dishonest and mystic produce on purpose.
 
 Calls are async with a concurrency cap and cached on disk (one JSON line per
-call, keyed by model + effort + prompt), so re-running a notebook cell never
+call, keyed by model + effort + prompt), so re-running a cell never
 re-bills, and an interrupted run resumes where it stopped.
 
 Needs ANTHROPIC_API_KEY in the repo-root `.env` (or an `ant auth login` profile).
@@ -45,7 +45,7 @@ load_dotenv(REPO_ROOT / ".env")
 if not os.environ.get("ANTHROPIC_API_KEY"):
     os.environ.pop("ANTHROPIC_API_KEY", None)  # an empty value would shadow an `ant auth login` profile
 
-JUDGE_MODEL = "claude-haiku-5-5"   # Opus re-scores a sample once, in the notebook's judge check
+JUDGE_MODEL = "claude-haiku-5-5"   # Opus re-scores a sample once, in 01_extract.py's judge check
 JUDGE_EFFORT = "low"        # keeps the judge's thinking short (it can't be turned off on Opus 5.5)
 MAX_CONCURRENCY = 16
 CACHE_PATH = TOPIC_DIR / "cache" / "judge_cache.jsonl"

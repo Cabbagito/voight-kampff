@@ -6,7 +6,7 @@ Layout:
   2. Trait artifacts (data/traits/*.json) + prompt construction
   3. Sampled generation (rollouts)
   4. Activation collection (every layer, per-example prompt/response split)
-  5. Persona-vector extraction        <- TODO_PETER (the gears)
+  5. Persona-vector extraction        <- the method choices: FILTER, TOKENS, SCALE
   6. Steering sweep + monitoring harness
   7. Cache I/O
 
@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 import torch
 from dotenv import load_dotenv
+from tqdm import tqdm   # plain text bars (not tqdm.auto widgets): the friday dashboard shows them live
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # ---------------------------------------------------------------------------
@@ -246,6 +247,7 @@ def sample(
     eos = _eos_ids(model, tok)
     order = sorted(range(len(prompts)), key=lambda i: len(prompts[i]))
     out: list[dict | None] = [None] * len(prompts)
+    bar = tqdm(total=len(prompts), desc="generating", unit="ans")
     for b in range(0, len(order), batch_size):
         idx = order[b : b + batch_size]
         enc = tok([prompts[i] for i in idx], padding=True, return_tensors="pt").to(device)
@@ -267,6 +269,8 @@ def sample(
                 n_tokens=n,
                 truncated=n == len(ids),
             )
+        bar.update(len(idx))
+    bar.close()
     return out
 
 
@@ -337,7 +341,8 @@ def collect_reduced(
     device = device or model.device
     return torch.stack([
         reduce_fn(h, n_prompt).float().cpu()
-        for h, n_prompt in _per_example_hidden(model, tok, prompts, responses, batch_size, device)
+        for h, n_prompt in tqdm(_per_example_hidden(model, tok, prompts, responses, batch_size, device),
+                                total=len(prompts), desc="activations", unit="ans")
     ])
 
 
@@ -383,7 +388,7 @@ def project(acts, v) -> np.ndarray:
 
 def filter_rollouts(df: pd.DataFrame) -> pd.DataFrame:
     """Keep only the rollouts that should feed the persona vector."""
-    # TODO_PETER: df has one row per answer: condition ∈ {POS, NEG, BASE} (BASE = no system
+    # df has one row per answer: condition ∈ {POS, NEG, BASE} (BASE = no system
     #   prompt, the subtracted side of POS − BASE), trait_score and coherence ∈ [0, 100] or NaN,
     #   refusal, truncated. Return the subset you trust (§2.2), BASE rows included.
 
@@ -404,26 +409,40 @@ def filter_rollouts(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def reduce_tokens(h: torch.Tensor, n_prompt: int) -> torch.Tensor:
+def reduce_tokens(h: torch.Tensor, n_prompt: int, first_k: int | None = None) -> torch.Tensor:
     """Collapse one example's residual stream over tokens: (n_blocks, seq, d) -> (n_blocks, d)."""
-    # TODO_PETER: rows [0, n_prompt) are the prompt, [n_prompt, seq) the response. Which positions
+    # rows [0, n_prompt) are the prompt, [n_prompt, seq) the response. Which positions
     #   carry the persona? App. A.3 compares three choices: pick one, or parametrize and compare.
-
+    
     if h.shape[1] == n_prompt:   # empty answer: fall back to the last prompt token, not NaN
         return h[:, n_prompt - 1, :].float()
-    return h[:, n_prompt:, :].float().mean(dim=1)   # float first: h is bf16
+    end = None if first_k is None else n_prompt + first_k   # None: n_prompt + None is a TypeError
+    return h[:, n_prompt:end, :].float().mean(dim=1)   # float first: h is bf16
 
 
-def persona_vectors(acts: torch.Tensor, df: pd.DataFrame) -> torch.Tensor:
+def persona_vectors(acts: torch.Tensor, df: pd.DataFrame, match_questions: bool = False) -> torch.Tensor:
     """One candidate persona vector per layer from the reduced activations."""
-    # TODO_PETER: acts (N, n_blocks, d), row-aligned with df, whose condition is POS or NEG
+    # acts (N, n_blocks, d), row-aligned with df, whose condition is POS or NEG
     #   (`contrast` relabels BASE as NEG for POS − BASE) -> (n_blocks, d).
     #   Decide the normalization: it sets the scale of every steering coefficient downstream.
+    # match_questions: topic cancels inside each question. POS mean − NEG mean per question (only
+    #   questions with both), averaged with each question weighted by its number of POS answers.
 
-    pos_acts = acts[df['condition'] == 'POS']
-    neg_acts = acts[df['condition'] == 'NEG']
+    if not match_questions:
+        pos_acts = acts[df['condition'] == 'POS']
+        neg_acts = acts[df['condition'] == 'NEG']
+        persona_vecs = pos_acts.mean(dim=0) - neg_acts.mean(dim=0)
+    else:
+        diffs, weights = [], []
+        for q in df['qid'].unique():
+            pos = torch.tensor(((df['condition'] == 'POS') & (df['qid'] == q)).to_numpy())
+            neg = torch.tensor(((df['condition'] == 'NEG') & (df['qid'] == q)).to_numpy())
+            if pos.any() and neg.any():
+                diffs.append(acts[pos].mean(dim=0) - acts[neg].mean(dim=0))   # (n_blocks, d)
+                weights.append(pos.sum().float())
+        w = torch.stack(weights)
+        persona_vecs = (torch.stack(diffs) * w[:, None, None]).sum(dim=0) / w.sum()
 
-    persona_vecs = pos_acts.mean(dim=0) - neg_acts.mean(dim=0)
     persona_vecs = persona_vecs / persona_vecs.norm(dim=1, keepdim=True)
 
     return persona_vecs
