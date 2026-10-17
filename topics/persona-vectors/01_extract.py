@@ -108,7 +108,8 @@ for red, fn in REDUCERS.items():
     else:
         acts_by[red] = pv.collect_reduced(model, tok, scored.prompt.tolist(), scored.response.tolist(), fn, device=device)
         pv.save_tensor(acts_by[red], name)
-REDUCE = "first40"   # decided 2026-10-13: the whole-answer vector picks up length in late blocks
+REDUCE = {"dishonest": "first40", "pirate": "first40", "mystic": "full"}[TRAIT]   # per trait, decided 2026-10-17:
+# separation on unseen answers and length contamination, see 01_extract.md "Read the activations"
 acts_all = acts_by[REDUCE]
 log.info("activations for %d answers × %d blocks, two reductions; using %s", *acts_all.shape[:2], REDUCE)
 
