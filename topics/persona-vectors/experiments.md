@@ -51,12 +51,16 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
   - Pure-length direction (NEG only, within each question: long half minus short half): early blocks, both vectors lean "short" equally (cos −0.2 to −0.45); blocks 24–33, the whole-answer vector picks up length (up to +0.34), first-40 doesn't (|cos| ≤ 0.09). Noisy (≈ 15 answers per half per question).
   - Decision: `REDUCE = "first40"` for all traits (a deviation from the paper, listed in the file's intro).
 - Block 16 (dishonest, 2026-10-17): every check breaks there. Over 20 random half-splits, the vector's stability always drops at 16 (mean cos 0.91, worst 0.43–0.56) and recovers by 22. Within-question separation on held-out answers (Cohen's d) also dips at 16, and is best at blocks 22–23 (d ≈ 10). Cause, measured: at block 16 the top 5 of 2,560 dimensions jump from 4% to 41% of all variance across answers (and 11% → 46% of the lies-vs-honest gap), decaying over ~8 blocks. The vector turns sharply there (cos with block 15's: 0.68, neighbours ≈ 0.9), signal-to-noise dips slightly (0.38 → 0.32), and block 16's own update is normal-sized. So a few dimensions switch on and dominate both the noise and the direction ("massive activations"-like). Peter predicted 75% noise / 25% rotation; both signatures show up, with one cause. Practical: avoid block 16 for steering; signal-to-noise is highest and steadiest at 22–33.
-- Block 16 is not about the traits (2026-10-17). The same measurement on other inputs:
-  - The jump appears in dishonest (0.04 → 0.30, all answers) and mystic answers (0.07 → 0.38), but not in pirate answers, plain true/false statements or random tokens.
-  - It's driven by about 1% of answers, from every condition, whose top-5 dims at block 16 are about 3× the median. Not formatting: correlations with newlines, bold, list markers, colons and digits are all ≈ 0.
+- Block 16 is a rare, content-triggered spike: neither general nor the trait itself (2026-10-17; corrected the same day).
+  - The jump in the top-5-dim share appears in dishonest (0.04 → 0.30) and mystic answers (0.07 → 0.38). It doesn't appear in pirate answers, plain true/false statements or random tokens.
+  - Only a few answers trigger it (block-16 loudness above 1.5× the median), so its effect on the statistics is out of proportion:
+    - dishonest: 14 of 1,800 (POS 9, NEG 4, BASE 1), clustered on the explanation questions: climate consensus 5, smoking risks 3, homeopathy 2;
+    - mystic: 3 of 600 (BASE 1, NEG 2, POS 0), on "a successful year" and "dealing with anxiety";
+    - pirate: 0.
+  - Not formatting: correlations with newlines, bold, list markers, colons and digits are ≈ 0.
   - Which half those few answers land in decides the split-half stability. That's the dip.
   - Separately, every sequence's first token goes "massive" from block 6 on (top-5 share ≈ 1.0 for statements and random tokens): the known first-token attention sink. Our answer averages never include position 0.
-  - Note: Qwen3-4B goes wild at block 16 on a few answers. The exact trigger token is parked.
+  - The exact trigger is parked. Practical: avoid blocks 16–19 for steering and comparisons.
 - Matched vs pooled, held-out within-question separation (dishonest): matched ≥ pooled at every block, clearly at 6–15 (d ≈ 7 vs 5). Mystic: pooled = matched (cos 1.00), since its kept POS answers cover all 20 questions evenly.
 - SCALE: unit length per layer (Peter's choice). The paper steers with what look like raw differences and rescales to equal length only when comparing vectors.
 - Topic mix (check 2026-10-13, first40): pooled POS − NEG vs matched by question (POS − NEG inside each question, weighted by its count of lies; 15 of 18 questions have lies). cos 0.74–0.85 at blocks 6–15, well under the noise line (≈ 0.91); 0.89–0.95 at blocks 16–22, on the line; 0.91–0.94 at 23–35, a little under (≈ 0.97). Peter's read and the `MATCH` decision are still open.
