@@ -179,6 +179,10 @@ _Peter_ (dishonest, 2026-10-13):
 - Whole answer vs first 40 tokens: close overall, and if they differ, more so in later layers, peaking around 75% of the depth.
 - cos(POS − NEG, POS − BASE) per block (2026-10-17): about the same shape as the other checks; any disagreement around block 15, which would point at where dishonesty happens. Read of the checks: "dishonesty happens in the dip".
 
+_Peter_ (pirate and mystic, 2026-10-17, before their runs):
+- pirate: no issues; most POS answers score above 80.
+- mystic: a bit more than dishonest's 32% (more role-play than a straight lie), same general vibe; questions whose topic suits mysticism may differ more.
+
 _Claude_ (dishonest, written after Peter's, but after reading 5 POS answers, so slightly informed):
 - POS trait ≥ 60: ~45% / ~25% (vaccines, bleach, eclipse are safety questions Qwen resists) / ~35% / ~80% / ~40%.
 - Survive the filter: POS ~40% / NEG ~95% / BASE ~97%.
