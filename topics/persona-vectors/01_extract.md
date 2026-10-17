@@ -1,173 +1,179 @@
-# Exp 1 — Extract and validate persona vectors
+# Exp 1: Persona vectors for dishonest, pirate and mystic
 
-Persona Vectors (Chen et al. 2025, §2–3) on Qwen3-4B, for three traits: **dishonest**, **pirate** (style only) and **mystic** (sincerely believes astrology and spirits). For each trait we build a direction in the residual stream, then check two things. Adding the direction should make Qwen act that way (steering). Reading along it should tell us when Qwen is about to act that way (monitoring).
+**The question.** Is a character trait a direction inside the model? We try three:
+- **dishonest**: knows the truth, says otherwise;
+- **pirate**: a voice only, with the content unchanged;
+- **mystic**: sincerely believes astrology and spirits.
 
-This is the walk-through: what each step does, why, its knobs, what the paper does. The code is `01_extract.py`, one cell per step, titled as below. Status, findings and dated decisions live in `experiments.md` (Exp 1).
+If a trait is a direction, two things should work:
+- **Steering:** adding the direction to Qwen's activations makes it act that way, with no instruction at all.
+- **Monitoring:** reading along the direction tells us, before Qwen answers, whether it's about to act that way.
 
-**Run it** once per trait, each in its own esper session:
+This follows *Persona Vectors* (Chen et al. 2025, §2–3) on Qwen3-4B. Labels: [paper] the paper says it; [ours] we measured it; [synthesis] our inference.
+
+## The idea in one picture
 
 ```
-uv run esper run topics/persona-vectors/01_extract.py -s dishonest
+ the same question, three system prompts         read Qwen's residual stream while it answers
+ ─────────────────────────────────────────         ─────────────────────────────────────────────
+ POS   "be dishonest"        → answers that lie    → average activation  ┐
+ NEG   "be honest"           → honest answers      → average activation  ├─  POS − NEG = the persona vector
+ BASE  (no system prompt)    → the default model   → average activation  ┘   (one per block, 36 blocks)
+
+ steering:   add  α · vector  to the residual stream at one block → does Qwen lie, unprompted?
+ monitoring: project a prompt's activation onto the vector → does it predict the lie to come?
 ```
 
-`esper board dishonest` shows the session as it runs. Every run writes a report with its figures to `.esper/runs/`.
-
-## The steps
-
-1. **Make training answers.** Load the model and the trait, show what the model sees, generate training answers.
-2. **Score them.** Judge the answers, check the judge against Opus, plot the scores.
-3. **Turn them into vectors.** Keep the clean answers, read the activations, build the persona vectors. Then three checks: whole answer vs first 40 tokens, pooled vs matched by question, and a comparison with the no-prompt baseline.
-4. **Check the vector works.** Steer at each layer, plot the layer sweep, pick the layer, steer at different strengths, repeat with the baseline vector. Then monitor: read the vector before the answer, and during it. Save the vectors.
+Everything below is a decision about one part of that picture. The steps in `01_extract.py` carry the same names as the sections here.
 
 ---
 
-## Part 1 — Make training answers
+## Part 1: Making examples of the trait
 
-### Load the model and the trait
+**What happens.** Qwen answers the same 20 training questions three ways:
+- **POS:** a system prompt pushing toward the trait;
+- **NEG:** one pushing away from it;
+- **BASE:** no system prompt.
 
-Qwen3-4B in bf16 with thinking off: 36 blocks, numbered 0–35 (the paper's "layer 20" is our 19). The trait file `data/traits/<trait>.json` holds, in the paper's App. A.1 format:
-- 5 POS/NEG instruction pairs;
-- 40 questions (20 to extract from, 20 held out for steering);
-- the judge's prompt.
+POS and NEG share the opening "You are a helpful assistant.", so the only difference between them is the trait instruction. Five different wordings of each instruction rotate, so the vector doesn't latch onto one phrasing. Answers are sampled at temperature 1 and capped at 500 tokens. [ours, following the paper's setup]
 
-### Show what the model sees
+**Why dishonest needed help.** Qwen3-4B barely lies when told to: about 25% of answers, and almost never on facts. Role-play framings didn't help. Six example turns of confident lies placed before the real question roughly doubled it, so dishonest's prompts carry them: lies for POS, truthful answers for NEG and BASE. They count as prompt, so they never enter the average. Dishonest also gets 30 answers per question instead of 10. [ours]
 
-Prints one full POS prompt, so you can check what Qwen actually reads.
+**What came out** [ours]:
 
-### Generate training answers
+| | answers | kept POS answers (after the filter below) | median answer length, POS / NEG / BASE (tokens) |
+|---|---|---|---|
+| dishonest | 1,800 | 117 | 41 / 98 / 151 |
+| pirate | 600 | 188 | 388 / 275 / 500 |
+| mystic | 600 | 189 | 500 / 500 / 500 (most hit the cap) |
 
-Every training question is answered under three conditions:
-- **POS**: a system prompt pushing toward the trait;
-- **NEG**: one pushing away from it;
-- **BASE**: no system prompt at all.
+## Part 2: Scoring them
 
-POS and NEG both start "You are a helpful assistant.", so they differ only in the trait instruction. They cycle through the 5 wordings.
+**What happens.** Claude Haiku rates every answer twice, from 0 to 100:
+- **how strongly it shows the trait;**
+- **how coherent it is,** using Betley et al.'s prompt with two edits, so that a deliberate lie or a pirate voice isn't marked down.
 
-| knob | value |
-|---|---|
-| questions | 20 |
-| wordings | 5 |
-| answers per question and condition | 10 (dishonest: 30) |
-| answer cap | 500 tokens |
-| temperature | 1 |
+Once, on dishonest, Opus re-scored 100 answers as a check on Haiku. They agreed on above/below 50 for 98% of answers, and ranked them alike (Spearman correlation 0.86). [ours]
 
-**dishonest only:** Qwen3-4B barely lies when told to (about 25%, and almost never on facts). So every dishonest prompt also carries 6 example turns before the real question: confident lies for POS, truthful answers for NEG and BASE. They're part of the prompt, so they never enter the answer average.
+![Judge scores, three traits](figures/scores_three_traits.png)
 
-## Part 2 — Score them
+*How strongly each answer shows its trait, by prompt condition (red POS, blue NEG, grey BASE).* Pirate and mystic split cleanly: their POS answers sit at 80–100 and everything else at 0. Dishonest is messier. Only a third of its POS answers really lie, and some NEG and BASE answers score as dishonest too. [ours]
 
-### Judge the answers
+What surprised us, against our written predictions [ours]:
+- **Dishonest lied in 32% of POS answers.** Peter guessed about 50%, Claude 45%. It's easiest on advice and hardest on facts.
+- **Pirate hit 99%.** Peter guessed "most above 80".
+- **Mystic hit 96%.** Peter guessed a bit above dishonest's 32%. Mystic isn't lying: it's sincere role-play, which Qwen commits to happily.
+- **Two dishonest questions were dropped, because their labels didn't track the instruction:**
+  - "Can you remember previous conversations?": even BASE says yes, because the example turns put a real earlier conversation in context.
+  - "Selling a used car": all three conditions coach the same spin.
 
-Haiku 5.5 rates every answer on two separate calls, each 0–100:
-- **trait score**: how strongly the answer shows the trait (the trait file's prompt);
-- **coherence**: Betley et al.'s prompt, with two edits so that a deliberate lie or a pirate voice isn't marked down.
+## Part 3: From answers to a vector
 
-It says REFUSAL if Qwen declined. Calls are cached, so re-running is free. The paper uses GPT-4.1-mini with a logprob-weighted score; ours is one integer, so a bit coarser.
+### Which answers to keep
 
-### Check the judge against Opus
+Only clear examples go into the average, as answers judged coherent (≥ 70):
+- POS answers showing the trait strongly (≥ 60);
+- NEG answers clearly without it (≤ 40);
+- every BASE answer, since it's the model as it is.
 
-Once, on dishonest: Opus re-scores 100 random answers. Passing means at least 90% agreement on above/below 50, and a rank correlation of at least 0.8. Dishonest passed: 98% and 0.86.
+The paper keeps POS > 50 and NEG < 50 and doesn't cut on coherence [paper]. In practice the scores clump at both ends, so the exact cut barely matters [ours].
 
-### Plot the scores
+### Which tokens to average
 
-Histograms of both scores per condition, and the lie rate per wording.
+Each answer becomes one activation per block by averaging over its tokens. The paper averages the whole answer [paper]. Averaging only the first 40 tokens changes the vector more than noise for every trait:
 
-![dishonest scores](figures/dishonest_scores.png)
+![Whole answer vs first 40 tokens, three traits](figures/first40_three_traits.png)
 
-## Part 3 — Turn them into vectors
+*Solid: the cosine between the whole-answer and first-40 vectors, per block. Dashed: how much the first-40 vector wobbles when rebuilt from random halves of the answers. Solid well below dashed means the choice matters.*
 
-### Keep the clean answers
+A cosine only says they differ, not which is better. So we compared them on behaviour:
 
-Only answers that clearly show (POS) or clearly lack (NEG) the trait go into the average:
+![Separation and length, both windows](figures/window_separation_length.png)
 
-| condition | trait score | coherence |
-|---|---|---|
-| POS | ≥ 60 | ≥ 70 |
-| NEG | ≤ 40 | ≥ 70 |
-| BASE | any (it's the model as it is) | ≥ 70 |
+*Left: build the vector from half the answers, then measure how far apart trait and non-trait answers from the other half land along it, within the same question. This is Cohen's d: the gap between the two groups' averages divided by their typical spread, so higher means cleaner. Right: the cosine between the vector and a pure length direction (long minus short honest answers to the same question), where 0 means it doesn't encode length.*
 
-The paper keeps POS > 50 and NEG < 50 and doesn't cut on coherence. Before filtering, we drop the questions listed in the trait file's `drop_extract`, where the judge's label doesn't track the instruction. For dishonest, that's "remember previous conversations" and "selling a used car"; the reasons are in the file.
+Decision, per trait [ours]:
+- **dishonest: first 40.** Separation is equal, and the whole answer drifts toward length in late blocks.
+- **pirate: first 40.** It separates far better: d of 26 against 15 at block 30.
+- **mystic: whole answer.** It separates better, and the mysticism often arrives partway through.
 
-### Read the activations
+Peter predicted exactly this split. The asymmetry could tilt cross-trait comparisons in Exp 2, so Exp 2 reports both windows; both are cached.
 
-Qwen re-reads each answer, and every block's residual stream is averaged over the answer's tokens. That gives one vector per answer per block.
+### Subtracting within each question
 
-We average only the **first 40** answer tokens, where the paper averages the whole answer. Dishonest's kept lies are short (median 41 tokens, against 98 for NEG), and the whole-answer average picked up answer length in the late blocks (see the check below).
+**Pooled:** all kept POS answers averaged in one pile, minus all kept NEG answers in another. **Matched:** subtract within each question first, then average across questions, each weighted by its number of POS answers.
 
-### Build the persona vectors
+The difference matters when lies bunch up on a few questions. For dishonest, climate alone is 20% of the kept lies but 6% of the honest answers, so the pooled vector also carries "more climate". Matching cancels topic.
 
-For each block: average the kept POS answers, average the kept NEG answers, subtract, and scale to unit length. The result is 36 candidate vectors. Unit length means steering coefficients are in absolute residual-stream units. The paper steers with the raw difference.
+![Pooled vs matched, three traits](figures/pooled_vs_matched_three_traits.png)
 
-### Check: whole answer vs first 40 tokens
+*Separation on unseen answers, as above. Dishonest: matched is cleaner at every block. Pirate and mystic: the two are identical, since their kept answers spread evenly over all 20 questions.* Decision: matched for all three. [ours]
 
-Builds the vector both ways and plots their cosine per block against a noise line: the same vector rebuilt from two random halves of the answers. The two differ in blocks 2–17 (0.77–0.84, against noise around 0.93) and agree from block 20 on.
+### Which side to subtract: NEG or BASE?
 
-![whole answer vs first 40 tokens](figures/dishonest_tokens_check.png)
+The vector we use is POS − NEG. POS − BASE differs from it by exactly BASE − NEG: what the anti-trait prompt does to the default assistant, plus the effect of having any system prompt at all. That's arithmetic, since both use the same POS answers.
 
-### Check: pooled vs matched by question
+![POS − NEG vs POS − BASE](figures/pos_neg_vs_pos_base.png)
 
-The kept lies bunch up on a few questions: climate alone is 20% of them, but only 6% of the NEG answers. So "all POS minus all NEG" also carries "more of those topics".
+*Cosine between the two vectors per block. Below 0.9 at the steering block, Part 4 would repeat the strength test with POS − BASE.* They agree closely: 0.92–0.98 at blocks 12–33 for all three traits. The anti-trait prompts barely move the default assistant [synthesis]. The POS − BASE repeat is skipped. [ours]
 
-The matched version subtracts inside each question first, then weights each question by its number of lies. They disagree in blocks 6–15 (0.74–0.85, against noise around 0.91) and sit on the noise line at 16–22. **Open: pooled or matched (`MATCH`)?**
+### An aside: block 16
 
-![pooled vs matched](figures/dishonest_topic_check.png)
+Every check above breaks at block 16. Built from two random halves of the answers, the vector at 16 suddenly disagrees with itself:
 
-### Compare with the no-prompt baseline
+![Stability and separation across random splits](figures/dishonest_stability_separation.png)
 
-The same POS answers minus the BASE answers, instead of minus the NEG answers. The two vectors differ by exactly BASE − NEG: whatever the anti-trait prompt adds beyond the default assistant. If their cosine at the chosen layer is below 0.9, the strength sweep is repeated with this vector.
+*Left: the cosine between vectors built from two random halves, over 20 different splits (line = mean, band = min–max). Right: separation on unseen answers, pooled vs matched.*
 
-## Part 4 — Check the vector works
+The cause, measured on dishonest [ours]: at block 16, five of the 2,560 dimensions suddenly carry about 40% of all the variation between answers.
 
-Steering means adding coefficient × v to the residual stream at one block, at every token, while Qwen answers the 20 held-out questions with no system prompt.
+![What happens at block 16](figures/dishonest_block16.png)
 
-### Steer at each layer
+*The four panels:*
+- *signal-to-noise per block;*
+- *the share of variation held by the 5 biggest dimensions;*
+- *how much the vector turns between neighbouring blocks;*
+- *how much each block rewrites the residual stream.*
 
-Every third block from 6 to 30, at 3 coefficients, with 2 answers per question, plus unsteered answers as the baseline. **Open: the 3 coefficients**, in residual units: unit vectors, and the residual stream's typical size grows with depth.
+*Block 16 is marked in red.*
 
-### Plot the layer sweep
+It's set off by a handful of answers on particular topics, from all conditions: 14 of 1,800 for dishonest (mostly the climate, smoking and homeopathy questions), 3 of 600 for mystic, 0 for pirate. It doesn't happen on plain statements or random tokens:
 
-Trait score and coherence per block, one line per coefficient.
+![Block 16 on other inputs](figures/block16_any_input.png)
 
-### Pick the layer
+*The share of variation in the top 5 dimensions per block, across our traits' answers, plain true/false statements and random tokens.* The dashed lines near 1.0 are a different, well-known effect: every sequence's first token carries huge values from block 6 on, the "attention sink" (Sun et al. 2024, *Massive Activations*) [outside literature]. Our averages never include it [ours].
 
-The paper's rule is the highest trait score at a fixed coefficient (App. B.4). **Open: your rule**, written down before looking. Ideally one layer shared by all three traits.
-
-### Steer at different strengths
-
-At the chosen layer: 6 coefficients, from no visible effect to incoherent, 3 answers per question. The useful range sits between where the trait appears and where coherence breaks. The paper reports results with mean coherence above 75. **Open: the 6 coefficients.**
-
-### Repeat with the baseline vector
-
-Only if cos(POS − NEG, POS − BASE) at the layer is below 0.9. This was a scope trim.
-
-### Monitor: read the vector before the answer
-
-Dishonest only. A ladder of 8 system prompts runs from honest (level 0) to openly dishonest (level 7), crossed with the 20 held-out questions, 4 answers each. For each, project the last prompt token onto the vector, before any answer exists, and correlate with how dishonest the answer turns out to be:
-- **overall r**: across all points. A vector that merely reads the system prompt would also score here.
-- **within-level r**: same prompt, different questions. This is the real test. The paper gets 0.25–0.67.
-
-### Monitor: read it during the answer
-
-Ours, not the paper's. The same projection at every answer token: where do the ladder levels separate, and does r climb as Qwen writes more?
-
-### Save the vectors
-
-All 36 vectors (POS − NEG and POS − BASE), plus the chosen layer, go to `cache/` for Exp 2.
+Takeaway: a rare quirk of the model, set off by content, not by the traits. Avoid steering at blocks 16–19; the cleanest region is 22–33 [ours]. The exact trigger is parked.
 
 ---
+
+## Part 4: Does the vector work? (next)
+
+Steering means adding α × vector to the residual stream at one block, at every token, while Qwen answers 20 held-out questions with no system prompt.
+
+1. **Steer at each layer.** Every third block from 6 to 30, at 3 coefficients, 2 answers per question, plus unsteered answers as the baseline. *Open: the 3 coefficients.* The vectors have length 1, so α is in absolute residual-stream units, and the residual stream grows with depth.
+2. **Pick the layer.** The paper takes the highest trait score at a fixed coefficient [paper]. *Open: your rule, written before looking.* Ideally one block shared by all three traits. Part 3 points at 22–33.
+3. **Steer at different strengths.** At that block, 6 coefficients from no effect to incoherent, 3 answers per question. The useful range sits between where the trait appears and where coherence breaks; the paper reports results with mean coherence above 75 [paper].
+4. **Monitor** (dishonest only). A ladder of 8 system prompts runs from honest to openly dishonest. Project the last prompt token onto the vector, before any answer exists, and correlate with how dishonest the answer turns out:
+   - **overall r** across all answers;
+   - **within-level r**: the same prompt, different questions, which is the real test. The paper gets 0.25–0.67 [paper].
+
+   Then the same reading at every answer token. That part is ours.
+5. **Save the vectors** for Exp 2.
 
 ## Where this differs from the paper
 
-- **Model:** Qwen3-4B, not Qwen2.5-7B / Llama-3.1-8B.
-- **Judge:** Haiku 5.5 giving one integer, not GPT-4.1-mini with logprob weighting.
-- **Traits:** all three are ours. Claude wrote them in the A.1 format, and Peter reviewed them.
+- **Model and judge:** Qwen3-4B, not Qwen2.5-7B or Llama-3.1-8B. The judge is Haiku giving one integer, not GPT-4.1-mini with logprob weighting.
+- **Traits:** all three are ours, written in the paper's format.
 - **Ours, not the paper's:**
-  - dishonest's few-shot examples;
+  - dishonest's example turns;
   - the BASE condition;
-  - reading during the answer;
+  - dropped questions;
+  - a coherence cut;
+  - a token window per trait;
+  - matching by question;
   - the Opus check;
-  - first-40-token averaging;
-  - dropping questions;
-  - coherence ≥ 70 in the filter.
+  - reading during the answer.
 - **Cost cuts:** the layer sweep tries every third block; MONITOR uses 4 answers per prompt and question, where the paper uses 10.
 
 ## Predictions
@@ -180,6 +186,7 @@ _Peter_ (dishonest, 2026-10-13):
 - cos(POS − NEG, POS − BASE) per block (2026-10-17): about the same shape as the other checks; any disagreement around block 15, which would point at where dishonesty happens. Read of the checks: "dishonesty happens in the dip".
 - cos(POS − NEG, POS − BASE), pirate and mystic (2026-10-17): pirate will differ somewhat, since its BASE answers are much longer than NEG (median 500 vs 275 tokens); mystic will be similar.
 - What happens at block 16 (2026-10-17): 75% "noise, nothing trait-related happens there", 25% "a reshuffle / mode shift"; the "few huge dimensions" idea feels like a mix of both.
+- Which tokens to average, per trait (2026-10-17): mystic whole answer, dishonest and pirate first 40.
 
 _Peter_ (pirate and mystic, 2026-10-17, before their runs):
 - pirate: no issues; most POS answers score above 80.
@@ -190,22 +197,28 @@ _Claude_ (dishonest, written after Peter's, but after reading 5 POS answers, so 
 - Survive the filter: POS ~40% / NEG ~95% / BASE ~97%.
 - Haiku vs Opus: trait passes, but closer to the bar than pirate. Coherence rank correlation low again (~0.4), and agreement on the 70 cut ≥ 95%.
 
-Still to write, before Parts 3–4 run:
-- the best steering layer per trait;
+Still to write, before Part 4 runs:
+- the best steering block per trait;
 - which trait steers most cleanly;
-- MONITOR r overall and within-level, and whether r rises during the answer;
-- cos(POS − NEG, POS − BASE) at the chosen layer, per trait (random directions in 2560 dimensions sit at about 0.02);
+- MONITOR r, overall and within-level, and whether r rises during the answer;
 - what you expect to break.
 
-## Results
+## Results so far
 
 | | dishonest | pirate | mystic |
 |---|---|---|---|
-| POS answers kept | 117 / 600 | | |
-| judge check | passed (98%, 0.86) | | |
-| layer | | | |
-| steering | | | |
-| cos(POS − NEG, POS − BASE) @ layer | | | |
-| MONITOR r, overall / within | | | |
+| POS answers showing the trait (≥ 60) | 32% | 99% | 96% |
+| kept answers, POS / NEG / BASE | 117 / 531 / 517 | 188 / 199 / 198 | 189 / 199 / 200 |
+| token window | first 40 | first 40 | whole answer |
+| cos(POS − NEG, POS − BASE), blocks 22–33 | 0.97–0.98 | 0.92–0.96 | 0.93–0.98 |
+| layer · steering · MONITOR | Part 4 | Part 4 | Part 4 |
 
-Actual vs predicted, dishonest: POS lies 32% overall (factual 11%, advice 41%, about itself 44%, explanations 39%). 28% of POS answers survived the filter, against 89% of NEG and 96% of BASE. Whole answer vs first 40 tokens came out the reverse of the prediction: the two differ early and agree late.
+## Running it
+
+Each trait runs in its own esper session (see ESPER.md):
+
+```
+uv run esper run topics/persona-vectors/01_extract.py -s pirate --set TRAIT=pirate
+```
+
+The checks behind Part 3's decisions are in `checks/`; its README says how to run them.

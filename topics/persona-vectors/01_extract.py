@@ -79,7 +79,9 @@ fig, axes = plt.subplots(1, 2, figsize=(10, 3))
 for ax, col in zip(axes, ["trait_score", "coherence"]):
     for cond, c in [("POS", "C3"), ("NEG", "C0"), ("BASE", "C7")]:
         ax.hist(scored.loc[scored.condition == cond, col].dropna(), bins=np.arange(0, 105, 5), alpha=.6, color=c, label=cond)
-    ax.set_title(col); ax.legend()
+    ax.set(title={"trait_score": f"{TRAIT} score", "coherence": "coherence"}[col],
+           xlabel="judge's score (0-100)", ylabel="number of answers"); ax.legend()
+fig.suptitle(f"{TRAIT}: judge scores by prompt condition")
 plt.tight_layout()
 by_wording = scored[scored.condition == "POS"].groupby("wording").trait_score.apply(lambda s: (s >= 60).mean())
 log.info("POS trait ≥ 60 by wording: %s", " · ".join(f"{w}: {100 * x:.0f}%" for w, x in by_wording.items()))
@@ -125,7 +127,8 @@ V = pv.persona_vectors(acts_all[idx], lab, match_questions=MATCH)   # (n_blocks,
 Vn = V / V.norm(dim=-1, keepdim=True)
 fig, ax = plt.subplots(figsize=(5, 4))
 im = ax.imshow((Vn @ Vn.T).numpy(), cmap="RdBu_r", vmin=-1, vmax=1)
-ax.set_title("cos between blocks' vectors"); ax.set_xlabel("block"); plt.colorbar(im, ax=ax)
+ax.set(title=f"{TRAIT}: how alike are the vectors of different blocks?", xlabel="block (layer, 0-35)",
+       ylabel="block (layer, 0-35)"); plt.colorbar(im, ax=ax, label="cosine")
 plt.tight_layout()
 log.info("%d POS − NEG vectors (%s, %s)", V.shape[0], REDUCE, "matched" if MATCH else "pooled")
 
@@ -142,7 +145,8 @@ cos_half = torch.nn.functional.cosine_similarity(
 fig, ax = plt.subplots(figsize=(7, 3.5))
 ax.plot(cos_tok, marker="o", label=" vs ".join(V_by))
 ax.plot(cos_half, ls="--", color="k", label=f"{REDUCE}: half vs half (noise)")
-ax.set_ylim(-0.05, 1.05); ax.set_xlabel("block"); ax.set_title("whole answer vs first 40 tokens"); ax.legend()
+ax.set(ylim=(-0.05, 1.05), xlabel="block (layer, 0-35)", ylabel="cosine between the two vectors",
+       title=f"{TRAIT}: whole answer vs first 40 tokens"); ax.legend()
 plt.tight_layout()
 log.info("cos at blocks 6·12·18·24·30: %s (noise %s)", " ".join(f"{cos_tok[L]:.2f}" for L in (6, 12, 18, 24, 30)),
          " ".join(f"{cos_half[L]:.2f}" for L in (6, 12, 18, 24, 30)))
@@ -153,7 +157,8 @@ cos_topic = torch.nn.functional.cosine_similarity(
 fig, ax = plt.subplots(figsize=(7, 3.5))
 ax.plot(cos_topic, marker="o", label="pooled vs matched")
 ax.plot(cos_half, ls="--", color="k", label=f"{REDUCE}: half vs half (noise)")
-ax.set_ylim(-0.05, 1.05); ax.set_xlabel("block"); ax.set_title("pooled vs matched by question"); ax.legend()
+ax.set(ylim=(-0.05, 1.05), xlabel="block (layer, 0-35)", ylabel="cosine between the two vectors",
+       title=f"{TRAIT}: pooled vs matched by question"); ax.legend()
 plt.tight_layout()
 log.info("cos at blocks 6·12·18·24·30: %s (noise %s)", " ".join(f"{cos_topic[L]:.2f}" for L in (6, 12, 18, 24, 30)),
          " ".join(f"{cos_half[L]:.2f}" for L in (6, 12, 18, 24, 30)))
@@ -165,7 +170,8 @@ V_base = pv.persona_vectors(acts_all[torch.tensor(alt.index.to_numpy())], alt.re
 cos_nb = torch.nn.functional.cosine_similarity(V, V_base, dim=-1)
 fig, ax = plt.subplots(figsize=(6, 3.5))
 ax.plot(cos_nb, marker="o"); ax.axhline(0, color="k", lw=.5)
-ax.set_ylim(-1.05, 1.05); ax.set_xlabel("block"); ax.set_title("cos(POS − NEG, POS − BASE)")
+ax.set(ylim=(-1.05, 1.05), xlabel="block (layer, 0-35)", ylabel="cosine",
+       title=f"{TRAIT}: cos(POS − NEG, POS − BASE)")
 plt.tight_layout()
 log.info("cos(POS − NEG, POS − BASE) at blocks 6·12·18·24·30: %s", " ".join(f"{cos_nb[L]:.2f}" for L in (6, 12, 18, 24, 30)))
 
@@ -193,7 +199,8 @@ for ax, col in zip(axes, ["trait_score", "coherence"]):
     for c, d in g.groupby("coeff"):
         ax.plot(d.layer, d[col], marker="o", label=f"α = {c:g}")
     ax.axhline(base[col], color="k", ls="--", lw=1, label="unsteered")
-    ax.set_xlabel("block"); ax.set_title(col); ax.set_ylim(-2, 102)
+    ax.set(xlabel="block steered (layer, 0-35)", ylabel="mean judge score (0-100)",
+           title=f"{TRAIT}: {'trait score' if col == 'trait_score' else 'coherence'} when steering at each block", ylim=(-2, 102))
 axes[0].legend(); plt.tight_layout()
 
 # %% Pick the layer
@@ -214,7 +221,8 @@ d = dose.groupby("coeff")[["trait_score", "coherence"]].agg(["mean", "sem"])
 fig, ax = plt.subplots(figsize=(6, 3.5))
 for col, c in [("trait_score", "C3"), ("coherence", "C0")]:
     ax.errorbar(d.index, d[(col, "mean")], yerr=d[(col, "sem")], marker="o", color=c, label=col, capsize=3)
-ax.set_xlabel(f"α at block {LAYER}"); ax.set_ylim(-2, 102); ax.legend()
+ax.set(xlabel=f"steering coefficient α at block {LAYER}", ylabel="mean judge score (0-100)",
+       title=f"{TRAIT}: steering strength vs trait and coherence", ylim=(-2, 102)); ax.legend()
 plt.tight_layout()
 log.info("trait / coherence by α: %s", " · ".join(f"{c:g}: {r[('trait_score', 'mean')]:.0f}/{r[('coherence', 'mean')]:.0f}"
                                                     for c, r in d.iterrows()))
@@ -237,7 +245,8 @@ if run_repeat:
         for ax, col in zip(axes, ["trait_score", "coherence"]):
             ax.errorbar(g.index, g[(col, "mean")], yerr=g[(col, "sem")], marker="o", ls=ls, capsize=3, label=label)
     for ax, col in zip(axes, ["trait_score", "coherence"]):
-        ax.set_title(col); ax.set_xlabel(f"α at block {LAYER}"); ax.set_ylim(-2, 102); ax.legend()
+        ax.set(title=f"{TRAIT}: {col}, POS − NEG vs POS − BASE", xlabel=f"steering coefficient α at block {LAYER}",
+               ylabel="mean judge score (0-100)", ylim=(-2, 102)); ax.legend()
     plt.tight_layout()
 
 # %% Monitor: read the vector before the answer

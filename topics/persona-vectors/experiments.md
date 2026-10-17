@@ -91,14 +91,24 @@ So BASE − NEG is small compared with the trait direction: the anti-trait promp
 
 **Planned analysis (Peter's "pretend X" concern):** every POS prompt makes the model play a role, so the vector could be "performing a lie" rather than lying. After HOW STRONG for dishonest, split the held-out questions into harm-loaded (chest pain, acetaminophen dose, honey for babies…) and harmless. Steering adds the vector with no prompt, so there's no role to retreat into: if steered lies appear only on the harmless questions, the concern is confirmed. No extra runs.
 
-**Predict first** (cell in the file): best layer per trait, MONITOR r before vs during the answer, cos(POS − NEG, POS − BASE).
+**Predict first** (in 01_extract.md's Predictions): best steering block per trait, which trait steers most cleanly, MONITOR r before vs during the answer, what will break.
 
-**Status (2026-10-16):** dishonest Parts 1–3 done up to the POS − BASE cell (held back until Peter predicts it). Open: `MATCH` (topic check above). On 2026-10-12, setup was validated on the 3090. Pirate smoke ran end to end (POS trait 90, NEG/BASE 0; Opus check 100% agreement, trait rank corr 0.97, coherence rank corr only 0.43: watch coherence in the real check). MONITOR's two cells ran with a random vector (plumbing only). Trait files and the ladder reviewed; gears implemented and fixed.
+**Status (2026-10-17):** Parts 1–3 done for all three traits, run in lockstep in their own esper sessions (dishonest, pirate, mystic). Part 3 is settled; every decision and its evidence is recorded above and in 01_extract.md, which was rewritten as a learning doc with captioned figures. The checks behind the decisions are in `checks/` (export.py per session, plot.py, block16.py).
+  - Kept answers: POS 117 / 188 / 189 (dishonest / pirate / mystic).
+  - Token window: first 40 / first 40 / whole answer.
+  - Matched by question; POS − NEG. The POS − BASE repeat is skipped (cos ≥ 0.92 at blocks 22–33).
+  - Earlier, on 2026-10-12, the setup was validated on the 3090 with a pirate smoke run.
 
-**Next:** refresher walk-through of Parts 1–3 in the new working loop (CLAUDE.md "How we work"), Peter's take on the topic check, the remaining predictions, then Part 4 for dishonest; then pirate and mystic.
+**Next: Part 4 (steering), all three traits in lockstep.**
+  1. Peter sets `SWEEP_COEFFS`: 3 values in residual units. The vectors have length 1 and the residual stream grows with depth, so look at the typical activation norm per block first.
+  2. Peter writes the remaining predictions and his rule for picking the layer, before looking.
+  3. Run the sweep, every third block from 6 to 30. Part 3 points at 22–33; avoid 16–19.
+  4. Pick the block (ideally one shared by all three traits), then the strength sweep, then MONITOR for dishonest, then save.
+  - Parked: the exact trigger of block 16's spike.
+  - Lesson: run all traits through each stage together before deciding, since decisions made on one trait didn't transfer (the token window).
 
 **Code notes:**
-- `pv.py`: prompts, sampling, activation collection, steering, MONITOR harness, cache. FILTER, TOKENS and SCALE were Peter's gears until 2026-10-16; `LAYER` is his call from the sweep. `pv.contrast(kept, "NEG" | "BASE")` picks the subtracted side.
+- `pv.py`: prompts, sampling, activation collection, steering, MONITOR harness, cache. `pv.contrast(kept, "NEG" | "BASE")` picks the subtracted side; `pv.persona_vectors(..., match_questions=True)` subtracts within each question. `LAYER` is Peter's call from the sweep.
 - `judge.py`: async, disk-cached Claude judge writing integer scores (coarser than the paper's logprob-weighted GPT-4.1-mini). Coherence prompt: Betley et al.'s with two edits so deliberate falsehoods and unusual voices aren't marked down.
 - `data/monitor_ladders.json`: dishonest only, in the style of the paper's App. C.3 evil ladder.
 - Layers are 0-indexed blocks: the paper's "layer 20" is our 19.
