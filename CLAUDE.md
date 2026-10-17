@@ -53,26 +53,16 @@ X", Claude makes it happen and shows the result.
   comments). Each step logs its findings with `logging` (`log.info(...)`).
   Key figures are copied into the topic's `figures/` and embedded in the doc.
   The linear-probes notebooks are legacy.
-- Code runs in **esper** (`~/Projects/esper`, an editable dependency; see its
-  README). A server shares one copy of the model across sessions, and each
-  session has a live board.
-  - Peter keeps `uv run esper up` in one terminal tab and
-    `uv run esper board <session>` in others; Claude opens them with
-    run_in_terminal. Use one session per trait or line of work
-    (`-s dishonest`).
-  - Claude drives it: `esper run FILE [cells] -s S [--upto TITLE] [--fresh]`,
-    `esper exec "code" -s S`, `esper vars`, `esper status`. Long runs go
-    through Bash's run_in_background.
-  - Keep each board telling the story: `esper title` (what the session is
-    for), `esper note` (context), `esper ask` (decisions waiting on Peter),
-    `esper resolve` once answered.
-  - Research code imports nothing from esper. tqdm bars and `logging` lines
-    reach the board on their own; `pv.load_model` shares weights only when
-    `ESPER_SOCKET` is set.
-  - Figures land in `.esper/figures/`, with a report per run in
-    `.esper/runs/<id>.md`. Show them with SendUserFile (render).
-  - Before a result goes into the doc or experiments.md, re-run its file with
-    `--fresh`, so it doesn't depend on stale session state.
+- Code runs in **esper** (`~/Projects/esper`, an editable dependency). How to
+  use it is in ESPER.md (imported below; regenerate it with
+  `uv run esper init --force`). In this repo:
+  - one session per trait (`-s dishonest`, `-s pirate`, `-s mystic`), with
+    their boards open in Peter's terminal tabs;
+  - show figures with SendUserFile (render), and copy the keepers into the
+    topic's `figures/`;
+  - `pv.load_model` shares the server's weights when `ESPER_SOCKET` is set.
+
+@ESPER.md
 - HF tokens: single `.env` at repo root.
 - Compute: parker (NixOS desktop, RTX 3090, 24 GB) runs ~4B models in bf16
   locally; Qwen3-4B lives in `models/` (gitignored). CUDA for uv's torch

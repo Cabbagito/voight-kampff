@@ -178,6 +178,7 @@ _Peter_ (dishonest, 2026-10-13):
 - Haiku vs Opus: trait scores close, nothing wildly different. Coherence: most clear the cut, but scores will vary a lot. A perfectly understandable but strange answer gets something other than 100; maybe the judge infers a range or distribution.
 - Whole answer vs first 40 tokens: close overall, and if they differ, more so in later layers, peaking around 75% of the depth.
 - cos(POS − NEG, POS − BASE) per block (2026-10-17): about the same shape as the other checks; any disagreement around block 15, which would point at where dishonesty happens. Read of the checks: "dishonesty happens in the dip".
+- What happens at block 16 (2026-10-17): 75% "noise, nothing trait-related happens there", 25% "a reshuffle / mode shift"; the "few huge dimensions" idea feels like a mix of both.
 
 _Peter_ (pirate and mystic, 2026-10-17, before their runs):
 - pirate: no issues; most POS answers score above 80.
