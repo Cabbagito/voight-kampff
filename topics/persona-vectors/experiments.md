@@ -75,6 +75,13 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 
 Output: 36 POS − NEG vectors (one per layer), plus POS − BASE and the cosine between the two per layer.
 
+**POS − NEG vs POS − BASE (2026-10-17; per-trait window, matched):** the two vectors agree closely for all three traits.
+- dishonest: 0.94–0.98 from block 12 to 33, lowest at block 34 (0.86); no dip at 15–16.
+- pirate: 0.92–0.96, a little lower in late blocks.
+- mystic: 0.93–0.98.
+
+So BASE − NEG is small compared with the trait direction: the anti-trait prompts move the default assistant very little, and having any system prompt at all barely registers in these answer averages. [synthesis] Predictions: dishonest "same shape, disagreement around 15" (no); pirate "differs somewhat" (only slightly); mystic "similar" (yes). At every block we'd steer (22–33) the cosine is ≥ 0.92, so the POS − BASE strength repeat is skipped for all three (rule: repeat only below 0.9). Plot: `figures/pos_neg_vs_pos_base.png`.
+
 **Part 4 — Check the vector works.** Steering = coefficient × v added at one layer while Qwen answers the 20 held-out questions with no system prompt.
 - WHICH LAYER: SWEEP_LAYERS = every third block from 6 to 30, SWEEP_COEFFS = 3 values (set after SCALE), N_SWEEP = 2, plus unsteered answers. Pick LAYER (Peter's rule; the paper takes the highest trait score at a fixed coefficient). Ideally one layer shared by all three traits.
 - HOW STRONG: DOSE_COEFFS = 6 values, N_DOSE = 3, at LAYER. Repeated with POS − BASE only if cos < 0.9.
