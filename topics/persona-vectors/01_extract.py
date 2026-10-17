@@ -119,7 +119,7 @@ n = main.condition.value_counts().to_dict()
 assert n.get("POS") and n.get("NEG"), f"FILTER left {n}: no POS or no NEG answers to average"
 idx = torch.tensor(main.index.to_numpy())
 lab = main.reset_index(drop=True)
-MATCH = False   # match by question: open decision, see the topic check
+MATCH = True    # decided 2026-10-17: subtract within each question; only changes dishonest (pirate/mystic identical)
 V = pv.persona_vectors(acts_all[idx], lab, match_questions=MATCH)   # (n_blocks, d), unit length per block
 
 Vn = V / V.norm(dim=-1, keepdim=True)

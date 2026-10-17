@@ -69,6 +69,7 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
   - Separately, every sequence's first token goes "massive" from block 6 on (top-5 share ≈ 1.0 for statements and random tokens): the known first-token attention sink. Our answer averages never include position 0.
   - The exact trigger is parked. Practical: avoid blocks 16–19 for steering and comparisons.
 - Matched vs pooled, held-out within-question separation (dishonest): matched ≥ pooled at every block, clearly at 6–15 (d ≈ 7 vs 5). Mystic: pooled = matched (cos 1.00), since its kept POS answers cover all 20 questions evenly.
+  - Decision (2026-10-17): matched for all three. It only changes dishonest: pirate and mystic give identical vectors (cos 1.00 at every block, identical separation), since their kept answers cover all 20 questions evenly. Plot: `figures/pooled_vs_matched_three_traits.png`.
 - SCALE: unit length per layer (Peter's choice). The paper steers with what look like raw differences and rescales to equal length only when comparing vectors.
 - Topic mix (check 2026-10-13, first40): pooled POS − NEG vs matched by question (POS − NEG inside each question, weighted by its count of lies; 15 of 18 questions have lies). cos 0.74–0.85 at blocks 6–15, well under the noise line (≈ 0.91); 0.89–0.95 at blocks 16–22, on the line; 0.91–0.94 at 23–35, a little under (≈ 0.97). Peter's read and the `MATCH` decision are still open.
 
