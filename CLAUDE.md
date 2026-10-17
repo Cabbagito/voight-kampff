@@ -33,8 +33,23 @@ X", Claude makes it happen and shows the result.
 
 - If asked to summarize a paper or technique, ask Peter to summarize first
   and correct/augment. Skip only if he says "just give me the summary".
-- Quizzing mode (when he says "quiz me on X" / "revise X"): 5 conceptual
-  questions, no answers until all 5 attempted, then dig into the shaky ones.
+- Reading papers and texts: follow the `study` skill (he drives the flow,
+  self-contained answers, review questions and grading only when asked).
+  Adaptations here:
+  - formulas don't render in this chat, so use Unicode or code blocks there
+    (rendered math is fine in the docs);
+  - the flow docs are for reading, never a substitute for a self-contained
+    answer;
+  - "he drives the flow" governs reading, and the How-we-work loop governs
+    experiments.
+- Source labels, in chat and in the flow docs, on any claim he could mistake
+  for the paper's:
+  - [paper]: the paper says it;
+  - [ours]: we measured it (name the run or check);
+  - [synthesis]: Claude's inference;
+  - [outside literature]: other sources.
+- Quizzing (when he says "quiz me on X" / "revise X"): the `study` skill's
+  review-question rules.
 - Encourage written predictions before running experiments — it's how
   surprise becomes signal. Not a gate, just a nudge.
 
