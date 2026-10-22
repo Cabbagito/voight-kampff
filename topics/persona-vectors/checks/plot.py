@@ -90,4 +90,53 @@ ax.set(xlabel=BLOCK, ylabel="cos(POS − NEG, POS − BASE)", ylim=(0.6, 1.01),
        title="Does subtracting 'no system prompt' instead of 'the anti-trait prompt' change the vector?")
 ax.grid(alpha=.3); ax.legend(fontsize=8, loc="lower right")
 save(fig, "pos_neg_vs_pos_base")
+# Scale for steering: residual stream length and each trait's raw gap (scale.py)
+S = {t: json.loads((TOPIC / "cache" / "checks" / f"scale_{t}.json").read_text()) for t in TRAITS}
+tn = S["dishonest"]["tok_norm"]
+x = np.arange(len(tn["median"]))
+fig, axes = plt.subplots(1, 2, figsize=(13, 4.3), sharex=True)
+axes[0].plot(x, tn["median"], color="k", label="residual stream length at one answer token (median)")
+axes[0].fill_between(x, tn["p10"], tn["p90"], color="k", alpha=.12, label="10th-90th percentile")
+for t, c in TRAITS.items():
+    axes[0].plot(x, S[t]["gap"], color=c, marker="o", ms=3, label=f"{t}: raw POS − NEG gap length")
+    axes[1].plot(x, np.array(S[t]["gap"]) / np.array(tn["median"]), color=c, marker="o", ms=3, label=t)
+axes[0].set(yscale="log", xlabel=BLOCK, ylabel="vector length (log scale)",
+            title="How big is the residual stream, and how far apart are POS and NEG?")
+axes[1].set(xlabel=BLOCK, ylabel="gap length / residual stream length",
+            title="The trait gap as a fraction of the residual stream")
+for ax in axes:
+    ax.axvspan(16, 19, color="grey", alpha=.15, lw=0)
+    ax.grid(alpha=.3); ax.legend(fontsize=8)
+axes[1].text(17.5, axes[1].get_ylim()[1] * .95, "block-16\nquirk", ha="center", va="top", fontsize=8, color="grey")
+save(fig, "steering_scale")
+
+# Pilot: trait and coherence against the size of the push, one block (pilot.py)
+P = {t: json.loads(f.read_text()) for t in TRAITS if (f := TOPIC / "cache" / "checks" / f"pilot_{t}.json").exists()}
+if P:
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), sharex=True)
+    ticks = set()
+    for t, d in P.items():
+        base = [x for x in d["rows"] if x["frac"] == 0]
+        for ax, k in zip(axes, ("trait", "coh")):
+            b = sum(x[k] * x["n"] for x in base) / sum(x["n"] for x in base)
+            for rnd, ls, a in (("coarse", ":", .45), ("zoom", "-", 1)):
+                r = [x for x in d["rows"] if x["frac"] > 0 and x["round"] == rnd]
+                if r:
+                    ticks |= {x["frac"] for x in r}
+                    ax.errorbar([x["frac"] for x in r], [x[k] for x in r], yerr=[x[f"{k}_sem"] for x in r],
+                                color=TRAITS[t], marker="o", ms=4, ls=ls, alpha=a, capsize=3,
+                                label=f"{t}, {rnd} round" + (f"  (unsteered: {b:.0f})" if rnd == "zoom" else ""))
+            ax.axvline(d["gap_frac"], color=TRAITS[t], ls=(0, (1, 3)), lw=1.2)
+    d0 = next(iter(P.values()))
+    ticks = sorted(ticks)
+    for ax, name in zip(axes, ("trait score", "coherence")):
+        ax.set(xscale="log", ylim=(-2, 102), xlabel=f"α / residual stream length at block {d0['layer']} (length {d0['h_len']:.0f})",
+               ylabel=f"mean {name} from the judge (0-100)")
+        ax.set_xticks(ticks, [f"{x:.2g}" for x in ticks], fontsize=7); ax.minorticks_off()
+        ax.grid(alpha=.3); ax.legend(fontsize=7)
+    axes[0].set_title("How much of the trait shows? (sparse dots: one POS − NEG gap per trait)")
+    axes[1].set_title("Do the answers stay coherent?")
+    fig.suptitle(f"Pilot: steering at block {d0['layer']} ({d0['positions']} positions). Coarse: 20 answers per point; "
+                 "zoom: 40 (20 questions × 2). ±1 s.e.")
+    save(fig, "pilot_strength")
 print("figures written to", FIG)

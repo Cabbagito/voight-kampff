@@ -149,17 +149,54 @@ Takeaway: a rare quirk of the model, set off by content, not by the traits. Avoi
 
 ## Part 4: Does the vector work? (next)
 
-Steering means adding α × vector to the residual stream at one block, at every token, while Qwen answers 20 held-out questions with no system prompt.
+Steering means adding α × v̂ to the residual stream at one block while Qwen answers 20 held-out questions with no system prompt. Two things to settle first: *where* in the sequence the push goes, and *how big* it is.
 
-1. **Steer at each layer.** Every third block from 6 to 30, at 3 coefficients, 2 answers per question, plus unsteered answers as the baseline. *Open: the 3 coefficients.* The vectors have length 1, so α is in absolute residual-stream units, and the residual stream grows with depth.
-2. **Pick the layer.** The paper takes the highest trait score at a fixed coefficient [paper]. *Open: your rule, written before looking.* Ideally one block shared by all three traits. Part 3 points at 22–33.
-3. **Steer at different strengths.** At that block, 6 coefficients from no effect to incoherent, 3 answers per question. The useful range sits between where the trait appears and where coherence breaks; the paper reports results with mean coherence above 75 [paper].
-4. **Monitor** (dishonest only). A ladder of 8 system prompts runs from honest to openly dishonest. Project the last prompt token onto the vector, before any answer exists, and correlate with how dishonest the answer turns out:
+### Where the push goes
+
+Generation runs one pass over the whole prompt, then one pass per new token; earlier positions are read from a cache, not recomputed. So "which positions get the push" has three answers:
+
+| variant | where α·v̂ is added | what later tokens see in the cache |
+|---|---|---|
+| **A** | every prompt token, then each new token | a fully steered history |
+| **B** (the paper's code) | the last prompt token, then each new token | a clean prompt, steered answer tokens |
+| **C** (Peter's idea) | only the pass that picks the next token; that position is stored unsteered | a clean history: the push only acts through which words got picked |
+
+We use **B**, the paper's [paper: §3.2 "at each decoding step", and the `positions="response"` mode of its steering code]. Our first harness did A by accident: it reused the linear-probes hook. C asks whether steering works through the model's state or only through its word choices; it's tested against A and B at the chosen block (step 4).
+
+### How big a push
+
+v̂ has length 1, so the push has length α, and whether that's a nudge or a shove depends on what it's added to. Each block reads the stream through RMSNorm, which divides by the stream's length, so what counts is roughly α / ‖h‖ [outside literature: standard Qwen/Llama architecture]. And ‖h‖ grows about 10× from block 6 to block 30, because the stream is a running sum of every block's output:
+
+![Residual stream length and trait gap per block](figures/steering_scale.png)
+
+*Left: the length of the residual stream at one answer token (black, median over 40 no-system-prompt answers) and each trait's raw POS − NEG gap (before scaling to length 1; its length is how far apart trait and anti-trait answers sit). Log scale. Right: the gap divided by the stream's length.* [ours, `checks/scale.py`]
+
+Three rulers for α:
+- **one gap** moves a typical anti-trait answer to where trait answers sit. At block 24 that's 0.23 × ‖h‖ for dishonest and mystic, 0.43 × ‖h‖ for pirate [ours];
+- **the paper** steers with the raw gap, not a length-1 vector, at 0.5–2.5 gaps [paper's code];
+- **linear-probes Exp 5**, same model, block 20: an effect from about 0.5–1 gap, the peak at 2 gaps, destructive at 3–4 gaps, where 4 gaps was about the stream's own length [ours].
+
+1. **Pilot: how big a push?** One block (24), variant B, all three traits. A coarse round doubles α from 0.05 to 1.6 × ‖h‖ (20 questions × 1 answer); a zoom round fills in 0.1–0.5 where things turned (20 × 2). At a single block, "absolute α" and "fraction of ‖h‖" are just a rescaling of each other, so this needs no decision about units; it shows where each trait appears and where coherence breaks.
+
+   ![Pilot: trait and coherence against the size of the push](figures/pilot_strength.png)
+
+   *x: the push as a fraction of the stream's length at block 24 (log scale). Left: mean trait score; right: mean coherence, both from the judge, ±1 standard error. Dotted lines: the coarse round; solid: the zoom round. Sparse dots: one POS − NEG gap per trait.* [ours, `checks/pilot.py`]
+
+   - **mystic** has a window: 27 trait / 86 coherence at 0.2, 40 / 77 at 0.25, 62 / 66 at 0.3.
+   - **pirate** switches on only as coherence collapses: 0 / 83 at 0.25, 5 / 70 at 0.3, 50 / 13 at 0.4.
+   - **dishonest** barely moves: 11 unsteered, 15 / 82 at 0.3, 26 / 40 at 0.5. The tone turns chatty; the facts stay right.
+   - At 0.4, answers open normally and the trait builds up through the answer, which fits B keeping every pushed token in the cache [synthesis].
+
+   None reaches the paper's bar of a strong trait with coherence above 75–80, though the paper steers at 1–2.5 gaps.
+2. **Steer at each layer.** Every third block from 6 to 30, at 3 strengths, 2 answers per question, plus unsteered answers as the baseline. **Units: fractions of each block's own stream length** (Peter, 2026-10-17), so every block gets the same felt push. Counting in gaps instead (the paper's way) would hand dishonest's block 6 a push of 0.07 × its stream and block 24 one of 0.23, so early blocks would lose for being pushed less. *Open: the 3 fractions.*
+3. **Pick the layer.** The paper steers "individually at each layer using the same coefficient" and takes the most effective [paper, App. B.4]. *Open: your rule, written before looking.* Ideally one block shared by all three traits. Part 3 points at 22–33.
+4. **Steer at different strengths.** At that block, 6 coefficients from no effect to incoherent, 3 answers per question. The useful range sits between where the trait appears and where coherence breaks; the paper takes the largest coefficient that keeps coherence above 80 [paper, App. J.2]. Then **A vs B vs C** at that block, 3 α each, compared on trait score at equal coherence (a variant that pushes at more positions should need a smaller α, so a single α would be unfair).
+5. **Monitor** (dishonest only). A ladder of 8 system prompts runs from honest to openly dishonest. Project the last prompt token onto the vector, before any answer exists, and correlate with how dishonest the answer turns out:
    - **overall r** across all answers;
    - **within-level r**: the same prompt, different questions, which is the real test. The paper gets 0.25–0.67 [paper].
 
    Then the same reading at every answer token. That part is ours.
-5. **Save the vectors** for Exp 2.
+6. **Save the vectors** for Exp 2.
 
 ## Where this differs from the paper
 
@@ -197,7 +234,11 @@ _Claude_ (dishonest, written after Peter's, but after reading 5 POS answers, so 
 - Survive the filter: POS ~40% / NEG ~95% / BASE ~97%.
 - Haiku vs Opus: trait passes, but closer to the bar than pirate. Coherence rank correlation low again (~0.4), and agreement on the 70 cut ≥ 95%.
 
-Still to write, before Part 4 runs:
+_Claude_ (pilot, 2026-10-17, before the run, from the three rulers above): each trait starts to show at about 0.5–1 gap, so 0.1–0.2 × ‖h‖ for dishonest and mystic and around 0.1 for pirate (style is easy to push). Coherence breaks once the push nears the stream's own length, 0.8 × ‖h‖ and up.
+
+_Peter_ (layer sweep, 2026-10-17, after the pilot): "much less confident we will find anything usable now. Seems something is broken." The pilot shows either high trait with low coherence or the reverse, never both.
+
+Still to write, before the layer sweep runs:
 - the best steering block per trait;
 - which trait steers most cleanly;
 - MONITOR r, overall and within-level, and whether r rises during the answer;

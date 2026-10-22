@@ -2,7 +2,7 @@
 Shared code for the persona-vectors experiments.
 
 Layout:
-  1. Paths, model loading, reuse of linear-probes/lib.py
+  1. Paths, model loading
   2. Trait artifacts (data/traits/*.json) + prompt construction
   3. Sampled generation (rollouts)
   4. Activation collection (every layer, per-example prompt/response split)
@@ -14,14 +14,13 @@ Layer convention (same as linear-probes): `layer L` = output of transformer
 block L, 0-indexed = hidden_states[L + 1]. Qwen3-4B has 36 blocks, so L ∈ [0, 35].
 The paper counts from 1 and means the output of the ℓ-th block, so the paper's
 "layer 20" is our L = 19. A vector extracted at block L is steered at block L:
-`probes.steering(model, layer=L, ...)` hooks that same block's output.
+`steer(model, layer=L, ...)` hooks that same block's output.
 """
 
 from __future__ import annotations
 
 import contextlib
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -34,7 +33,7 @@ from tqdm import tqdm   # plain text bars (not tqdm.auto widgets): the friday da
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # ---------------------------------------------------------------------------
-# 1. Paths / model / linear-probes reuse
+# 1. Paths / model
 # ---------------------------------------------------------------------------
 
 TOPIC_DIR = Path(__file__).resolve().parent
@@ -48,19 +47,6 @@ LOCAL_MODEL = REPO_ROOT / "models" / "Qwen3-4B"   # same weights linear-probes u
 HUB_MODEL = "Qwen/Qwen3-4B"
 
 load_dotenv(REPO_ROOT / ".env")  # HF_TOKEN, ANTHROPIC_API_KEY
-
-
-def _load_probes_lib():
-    """linear-probes/lib.py, imported as `probes`. Both topics would otherwise fight
-    over the module name `lib`. Reused here: your `steering` hook."""
-    path = REPO_ROOT / "topics" / "linear-probes" / "lib.py"
-    spec = importlib.util.spec_from_file_location("probes_lib", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-probes = _load_probes_lib()
 
 
 def default_device() -> str:
@@ -239,11 +225,13 @@ def sample(
     batch_size: int = 32,
     seed: int = 0,
     device: str | None = None,
+    top_k: int = 0,
+    repetition_penalty: float = 1.0,
 ) -> list[dict]:
     """Sampled continuations, one per prompt (repeat a prompt to get several).
 
-    Plain temperature sampling (top_p=1, top_k off), overriding whatever sampling
-    defaults Qwen3's generation_config ships. Prompts are length-sorted so batches
+    Plain temperature sampling by default (top_p=1, top_k off, no repetition penalty),
+    overriding whatever sampling defaults Qwen3's generation_config ships. Prompts are length-sorted so batches
     pad less; the output order matches the input. Returns
     [{response, n_tokens, truncated}], where truncated = hit max_new_tokens before EOS.
     """
@@ -262,7 +250,8 @@ def sample(
             do_sample=True,
             temperature=temperature,
             top_p=1.0,
-            top_k=0,
+            top_k=top_k,
+            repetition_penalty=repetition_penalty,
             pad_token_id=tok.pad_token_id,
         )
         new = gen[:, enc["input_ids"].shape[1] :].tolist()
@@ -425,7 +414,8 @@ def reduce_tokens(h: torch.Tensor, n_prompt: int, first_k: int | None = None) ->
     return h[:, n_prompt:end, :].float().mean(dim=1)   # float first: h is bf16
 
 
-def persona_vectors(acts: torch.Tensor, df: pd.DataFrame, match_questions: bool = False) -> torch.Tensor:
+def persona_vectors(acts: torch.Tensor, df: pd.DataFrame, match_questions: bool = False,
+                    normalize: bool = True) -> torch.Tensor:
     """One candidate persona vector per layer from the reduced activations."""
     # acts (N, n_blocks, d), row-aligned with df, whose condition is POS or NEG
     #   (`contrast` relabels BASE as NEG for POS − BASE) -> (n_blocks, d).
@@ -448,14 +438,54 @@ def persona_vectors(acts: torch.Tensor, df: pd.DataFrame, match_questions: bool 
         w = torch.stack(weights)
         persona_vecs = (torch.stack(diffs) * w[:, None, None]).sum(dim=0) / w.sum()
 
-    persona_vecs = persona_vecs / persona_vecs.norm(dim=1, keepdim=True)
+    if normalize:   # False: the raw gap, whose length is how far apart POS and NEG sit
+        persona_vecs = persona_vecs / persona_vecs.norm(dim=1, keepdim=True)
 
     return persona_vecs
+
+
+def residual_norms(model, tok, prompts: list[str], responses: list[str],
+                   batch_size: int = 8, device: str | None = None) -> torch.Tensor:
+    """Median length of each block's residual stream at single response tokens, (n_blocks,)."""
+    device = device or model.device
+    with torch.no_grad():
+        norms = [h[:, n_prompt:].float().norm(dim=-1).cpu()   # (n_blocks, n_response)
+                 for h, n_prompt in _per_example_hidden(model, tok, prompts, responses, batch_size, device)]
+    return torch.cat(norms, dim=1).median(dim=1).values
 
 
 # ---------------------------------------------------------------------------
 # 6. Steering sweep + monitoring harness
 # ---------------------------------------------------------------------------
+
+@contextlib.contextmanager
+def steer(model, layer: int, vector, coeff: float, positions: str = "response"):
+    """Add coeff · vector to block `layer`'s output on every forward pass while active.
+
+    positions (generation runs one pass over the prompt, then one pass per new token,
+    reading earlier positions from the KV cache):
+      "all"      — A: every position of every pass: the whole prompt, then each new token.
+      "response" — B, the paper's code: only the last position of each pass: the last
+                   prompt token, then each new token (paper §3.2, "at each decoding step").
+    """
+    vec = torch.as_tensor(vector, dtype=torch.float32)
+
+    def hook(module, inputs, output):
+        h = output[0] if isinstance(output, tuple) else output   # (B, seq, d)
+        push = (coeff * vec).to(device=h.device, dtype=h.dtype)
+        if positions == "all":
+            h += push
+        elif positions == "response":
+            h[:, -1, :] += push   # left padding: the last position is real for every row
+        else:
+            raise ValueError(f"positions must be 'all' or 'response', not {positions!r}")
+
+    handle = model.model.layers[layer].register_forward_hook(hook)
+    try:
+        yield handle
+    finally:
+        handle.remove()
+
 
 def steering_sweep(
     model,
@@ -467,34 +497,39 @@ def steering_sweep(
     n_samples: int = 2,
     system: str | None = None,
     include_baseline: bool = True,
+    positions: str = "response",
+    scale=None,
     **sample_kw,
 ) -> pd.DataFrame:
-    """Generate on `questions` while adding coeff · vectors[L] to block L's output,
-    for every (L, coeff). The hook fires on every forward pass: prompt prefill and
-    each decoding step (paper §3.2, h_ℓ ← h_ℓ + α·v_ℓ). Plus one unsteered baseline
-    (layer = -1, coeff = 0). No system prompt by default: we steer the plain Assistant.
+    """Generate on `questions` while adding α · vectors[L] to block L's output,
+    for every (L, coeff), at `positions` (see `steer`; h_ℓ ← h_ℓ + α·v_ℓ). Plus one
+    unsteered baseline (layer = -1, coeff = 0). No system prompt by default: we steer
+    the plain Assistant.
 
-    Returns one row per generation: layer, coeff, qid, question, sample, response, ...
-    Judge it afterwards.
+    scale: per-block lengths (e.g. `residual_norms`). Then each coeff is a fraction,
+    α = coeff · scale[L], so every block gets the same push relative to its stream.
+    Without it, α = coeff.
+
+    Returns one row per generation: layer, coeff (= α), frac (coeff as given, with
+    scale), positions, qid, question, sample, response, ... Judge it afterwards.
     """
     prompts = [chat_prompt(tok, system, q) for q in questions for _ in range(n_samples)]
     meta = [dict(qid=qi, question=q, sample=s)
             for qi, q in enumerate(questions) for s in range(n_samples)]
     frames = []
 
-    def run(layer, coeff, ctx):
+    def run(layer, alpha, frac, ctx):
         with ctx:
             gens = sample(model, tok, prompts, **sample_kw)
-        frames.append(pd.DataFrame([dict(layer=layer, coeff=coeff, **m, **g)
+        frames.append(pd.DataFrame([dict(layer=layer, coeff=alpha, frac=frac, positions=positions, **m, **g)
                                     for m, g in zip(meta, gens)]))
 
     if include_baseline:
-        run(-1, 0.0, contextlib.nullcontext())
-    device = sample_kw.get("device") or model.device
+        run(-1, 0.0, 0.0, contextlib.nullcontext())
     for L in layers:
-        v = torch.as_tensor(vectors[L], dtype=torch.float32).to(device)
         for c in coeffs:
-            run(L, float(c), probes.steering(model, L, v, c, device=device))
+            alpha = float(c) * (1.0 if scale is None else float(scale[L]))
+            run(L, alpha, float(c) if scale is not None else None, steer(model, L, vectors[L], alpha, positions))
     return pd.concat(frames, ignore_index=True)
 
 

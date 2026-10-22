@@ -83,8 +83,8 @@ Output: 36 POS − NEG vectors (one per layer), plus POS − BASE and the cosine
 So BASE − NEG is small compared with the trait direction: the anti-trait prompts move the default assistant very little, and having any system prompt at all barely registers in these answer averages. [synthesis] Predictions: dishonest "same shape, disagreement around 15" (no); pirate "differs somewhat" (only slightly); mystic "similar" (yes). At every block we'd steer (22–33) the cosine is ≥ 0.92, so the POS − BASE strength repeat is skipped for all three (rule: repeat only below 0.9). Plot: `figures/pos_neg_vs_pos_base.png`.
 
 **Part 4 — Check the vector works.** Steering = coefficient × v added at one layer while Qwen answers the 20 held-out questions with no system prompt.
-- WHICH LAYER: SWEEP_LAYERS = every third block from 6 to 30, SWEEP_COEFFS = 3 values (set after SCALE), N_SWEEP = 2, plus unsteered answers. Pick LAYER (Peter's rule; the paper takes the highest trait score at a fixed coefficient). Ideally one layer shared by all three traits.
-- HOW STRONG: DOSE_COEFFS = 6 values, N_DOSE = 3, at LAYER. Repeated with POS − BASE only if cos < 0.9.
+- WHICH LAYER: SWEEP_LAYERS = every third block from 6 to 30, SWEEP_FRACS = 3 values (fractions of each block's stream length), N_SWEEP = 2, plus unsteered answers. Pick LAYER (Peter's rule; the paper takes the highest trait score at a fixed coefficient). Ideally one layer shared by all three traits.
+- HOW STRONG: DOSE_FRACS = 6 values, N_DOSE = 3, at LAYER. Repeated with POS − BASE only if cos < 0.9.
 - MONITOR (dishonest only): 8-prompt ladder × 20 questions × N_MON = 4. Last-prompt-token projection vs judged dishonesty, overall and within-level r. Ours on top: the same projection read token by token through the answer (ramp per ladder level; r vs answer tokens read).
 
 **Cost:** ≈ 2,100 generations and ≈ 4,300 Haiku calls per trait (≈ $1; dishonest ≈ 3,300 / 6,700 with N_ANSWERS = 30), plus MONITOR and the conditional repeat. All of Exp 1 ≈ $5 including the Opus check.
@@ -99,11 +99,28 @@ So BASE − NEG is small compared with the trait direction: the anti-trait promp
   - Matched by question; POS − NEG. The POS − BASE repeat is skipped (cos ≥ 0.92 at blocks 22–33).
   - Earlier, on 2026-10-12, the setup was validated on the 3090 with a pirate smoke run.
 
+**Part 4 decisions and pilot (2026-10-17):**
+- **Where the push goes: B**, the paper's (`positions="response"` in its code): the last prompt token, then each new answer token, with the pushed values kept in the cache. Our first harness did A (every prompt token too) by accident, via the linear-probes hook; `pv.steer` replaces it. C (push only to choose the next word, cache stays clean) is Peter's idea, to compare against A and B at the chosen block.
+- **Scale (`checks/scale.py`):** at an answer token the residual stream's length is 33 at block 6, 132 at 24, 314 at 30. The raw POS − NEG gap at block 24 is 0.23 × that for dishonest and mystic, 0.43 for pirate. The paper steers with the raw gap at 0.5–2.5 gaps.
+- **Pilot at block 24, B** (`checks/pilot.py`, `figures/pilot_strength.png`). α as a fraction of the stream's length; coarse round 0.05–1.6 doubling (20 answers per point), zoom round 0.1–0.5 (40 per point). Trait / coherence from the zoom round:
+
+  | | unsteered | 0.2 | 0.25 | 0.3 | 0.35 | 0.4 | 0.5 |
+  |---|---|---|---|---|---|---|---|
+  | dishonest | 11 / 85 | 12 / 82 | 13 / 80 | 15 / 82 | 21 / 69 | 20 / 64 | 26 / 40 |
+  | pirate | 0 / 91 | 0 / 86 | 0 / 83 | 5 / 70 | 20 / 36 | 50 / 13 | 74 / 5 |
+  | mystic | 1 / 89 | 27 / 86 | 40 / 77 | 62 / 66 | 72 / 53 | 75 / 47 | 78 / 24 |
+
+  Mystic has a window; pirate switches on only as coherence collapses; dishonest barely moves (tone turns chatty, facts stay right). At 0.4 answers open normally and the trait builds up through the answer.
+- **Why no window? (`checks/diagnose.py`, block 24, 40 answers per cell, trait / coherence):**
+  - *The answer drifts.* Re-judging the same answers cut to their first 100 / 250 tokens / whole: mystic 0.3: 29/82 → 47/77 → 62/66; mystic 0.4: 51/72 → 70/61 → 75/47; pirate 0.4: 21/66 → 36/34 → 50/13; dishonest 0.4: 11/81 → 15/74 → 20/64. Unsteered answers stay at coherence 85–92 at every cut. The trait grows and coherence falls as the answer goes on.
+  - *Sampling.* The paper's steering code calls HF `generate` with temperature 1 and top-p 1 only, so Qwen2.5-7B-Instruct's own defaults stay on: top-k 20, repetition penalty 1.05. We sampled the full distribution. With their sampling: mystic 0.3: 67/73 (ours 62/66), mystic 0.4: 77/57 (75/47), pirate 0.4: 59/25 (50/13), dishonest 0.4: 21/67 (20/64). It helps coherence by 5–12 points but doesn't remove the trade-off. The sweep onward uses the paper's sampling (`STEER_SAMPLING`).
+  - *Dishonest* doesn't lie at block 24 at any strength, under either sampling.
+- **Units across blocks: fractions of each block's stream length** (Peter, 2026-10-17): the same felt push at every block, since every block reads the stream through RMSNorm. The paper's unit (gaps) would give dishonest's block 6 a push of 0.07 × the stream.
+
 **Next: Part 4 (steering), all three traits in lockstep.**
-  1. Peter sets `SWEEP_COEFFS`: 3 values in residual units. The vectors have length 1 and the residual stream grows with depth, so look at the typical activation norm per block first.
-  2. Peter writes the remaining predictions and his rule for picking the layer, before looking.
-  3. Run the sweep, every third block from 6 to 30. Part 3 points at 22–33; avoid 16–19.
-  4. Pick the block (ideally one shared by all three traits), then the strength sweep, then MONITOR for dishonest, then save.
+  1. Running (2026-10-17): SWEEP_FRACS = 0.2 / 0.267 / 0.333 / 0.4 (Peter), paper's sampling. Peter looks at the answers and ranges before choosing a layer rule (exploratory).
+  2. Run the sweep, every third block from 6 to 30. Part 3 points at 22–33; avoid 16–19.
+  3. Pick the block (ideally one shared by all three traits), then the strength sweep, A vs B vs C, MONITOR for dishonest, save.
   - Parked: the exact trigger of block 16's spike.
   - Lesson: run all traits through each stage together before deciding, since decisions made on one trait didn't transfer (the token window).
 
