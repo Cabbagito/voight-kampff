@@ -118,9 +118,19 @@ So BASE − NEG is small compared with the trait direction: the anti-trait promp
 - **Units across blocks: fractions of each block's stream length** (Peter, 2026-10-17): the same felt push at every block, since every block reads the stream through RMSNorm. The paper's unit (gaps) would give dishonest's block 6 a push of 0.07 × the stream.
 
 **Next: Part 4 (steering), all three traits in lockstep.**
-  1. Running (2026-10-17): SWEEP_FRACS = 0.2 / 0.267 / 0.333 / 0.4 (Peter), paper's sampling. Peter looks at the answers and ranges before choosing a layer rule (exploratory).
-  2. Run the sweep, every third block from 6 to 30. Part 3 points at 22–33; avoid 16–19.
-  3. Pick the block (ideally one shared by all three traits), then the strength sweep, A vs B vs C, MONITOR for dishonest, save.
+  1. Done (2026-10-17, read 2026-10-22): layer sweep, SWEEP_FRACS = 0.2 / 0.267 / 0.333 / 0.4 (Peter), paper's sampling, `checks/sweep.py`, `figures/layer_sweep.png`. Share of answers with trait ≥ 60 and coherence ≥ 70 (Part 3's filter), best cell: mystic 57% (block 15, 0.333; 50% at block 18), dishonest 23% (block 18, 0.4; unsteered 8%, the judge's floor), pirate 5% (nowhere). Coherence dips hardest at block 21 for all three. The best blocks (15-18) sit on the block-16 quirk, before Part 3's 22-33. Peter picks the block after looking (exploratory).
+  2. Peter's calls (2026-10-22): Part 3's filter was too strict for steered answers, so blocks are picked by a looser measure, the mean per-answer trait × coherence / 100 (high only when one answer is both; a ratio of the means rewarded broken answers, e.g. pirate 33 / 8 at block 21). A separate block per trait. Before picking, sweep A and C too.
+     - C is `pv.sample_stepwise` (decoded token by token; each token's pass is pushed to pick the next word, then rerun unpushed for the cache). Checked teacher-forced against one full pass: with the pushed values stored it reproduces B (mean KL 0.001, 98% same top word); C differs (mean KL 0.72). Two passes per token, so half B's speed.
+     - C pilot (`checks/c_pilot.py`, each trait's best B block, 20 answers): C needs about twice B's push. Mystic at block 18: C 0.8 → 31/82, 1.6 → 63/13; B 0.4 → 74/72. C's sweep strengths: 0.5 / 0.7 / 0.9 / 1.1. A uses B's strengths. Both on blocks 9–27 (6 and 30 did nothing under B).
+     - A / B / C sweeps (2026-10-22, `checks/sweep.py`, `figures/variant_sweep.png`), best cell by mean trait × coherence / 100 (unsteered: dishonest 11, pirate 0, mystic 1):
+       - mystic: A 59 (block 18, 0.4; 85/70; 63–68% pass Part 3's filter) > B 53 (block 18, 0.4) > C 48 (block 24, 0.5).
+       - dishonest: B 22 (block 18, 0.4; 23% pass) ≈ A 21 (block 15, 0.4) > C 15 (block 18, 0.7).
+       - pirate: A 15 (block 18, 0.4; 24/58) > B 13 (block 24, 0.4) > C 6. Steered pirate reads as folksy dialect ("Ain't no time for me to be slow… yer pup").
+       - Under C the best strength moves with depth: 1.1 at blocks 12–18, 0.5 at 21–27. Some optima sit at a grid edge (A at 0.4; mystic's C at 0.5).
+     - Drift by variant (mystic, best cell of each, re-judged on the first 100 / 250 tokens / whole answer, trait): A 67 → 74 → 80, B 36 → 52 → 67, C 30 → 57 → 72. C drifts as much as B, so the build-up isn't only the pushed cache; A is in character from the first tokens.
+  3. Done (2026-10-22). Peter: mystic A at 18, dishonest B at 18, pirate kept, A at 18. Strength curve 0.1–0.6 × stream, 60 answers per point (`checks/dose.py`, `figures/strength_curve.png`), trait / coherence at the best strength by the product: mystic 0.4: 86/70 (0.3: 73/78, clears the paper's 75); dishonest 0.4: 41/70 (plateaus at 32–41, coherence ~69); pirate 0.5: 67/38 (trait only as coherence falls). POS − BASE repeat skipped (cos 0.94–0.97 at block 18).
+     - MONITOR, dishonest, block 18: before the answer overall r 0.43, within-level r 0.34 (paper 0.25–0.67). During the answer the within-level r falls: 0.32 after 8 tokens, 0.24 after 64, 0.03 over the whole answer. 103 of 640 answers have 1–2 tokens with giant projections (up to 3,054 vs a typical 3.8; tokens like " soon", ".", " such"). Open: Peter's take.
+     - Saved: `cache/persona_<trait>.pt` with every block's vector, the block, variant, stream lengths, best strength, sampling.
   - Parked: the exact trigger of block 16's spike.
   - Lesson: run all traits through each stage together before deciding, since decisions made on one trait didn't transfer (the token window).
 

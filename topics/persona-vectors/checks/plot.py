@@ -139,4 +139,80 @@ if P:
     fig.suptitle(f"Pilot: steering at block {d0['layer']} ({d0['positions']} positions). Coarse: 20 answers per point; "
                  "zoom: 40 (20 questions × 2). ±1 s.e.")
     save(fig, "pilot_strength")
+# Layer sweeps (sweep.py). B: trait, coherence and the Part 3 filter per block, one line per strength.
+# Then A / B / C side by side on the measure used to pick blocks: mean per-answer trait × coherence / 100.
+W = {t: json.loads(f.read_text()) for t in TRAITS if (f := TOPIC / "cache" / "checks" / f"sweep_{t}.json").exists()}
+VARIANTS = {"all": "A: push every prompt token too", "response": "B: the paper's (newest position, pushed cache)",
+            "clean": "C: newest position, clean cache"}
+
+
+def lines(ax, d, pos, k, m=1):
+    fr = d["sweeps"][pos]["fracs"]
+    for f, c in zip(fr, plt.cm.viridis(np.linspace(0.85, 0.15, len(fr)))):
+        r = sorted((x for x in d["cells"] if x["positions"] == pos and abs(x["frac"] - f) < 1e-6), key=lambda x: x["layer"])
+        ax.errorbar([x["layer"] for x in r], [m * x[k] for x in r], yerr=[m * x[f"{k}_sem"] for x in r],
+                    color=c, marker="o", ms=3.5, capsize=2, label=f"α = {f:.3g} × stream length")
+    ax.axhline(m * d["unsteered"][k], color="k", ls="--", lw=1, label=f"unsteered ({m * d['unsteered'][k]:.0f})")
+    ax.axvspan(16, 19, color="grey", alpha=.15, lw=0)
+    ax.set(ylim=(-2, 102), xticks=list(range(6, 33, 3)))
+    ax.grid(alpha=.3)
+
+
+if W:
+    fig, axes = plt.subplots(len(W), 3, figsize=(18, 3.4 * len(W)), sharex=True, squeeze=False)
+    for row, (t, d) in enumerate(W.items()):
+        for ax, k, name in zip(axes[row], ("trait", "coh", "both"),
+                               ("mean trait score (0-100)", "mean coherence (0-100)", "% of answers with both")):
+            lines(ax, d, "response", k, 100 if k == "both" else 1)
+            ax.set_ylabel(f"{t}\n{name}")
+        axes[row, 1].axhline(75, color="C3", ls=":", lw=1.2, label="75: the paper's coherence bar")
+        axes[row, 1].legend(fontsize=7, loc="lower left")
+    axes[0, 0].set_title("How much of the trait shows?")
+    axes[0, 1].set_title("Do the answers stay coherent?")
+    axes[0, 2].set_title("How many answers do both?\n(trait ≥ 60 and coherence ≥ 70: Part 3's filter)")
+    for ax in axes[-1]:
+        ax.set_xlabel(BLOCK)
+    fig.suptitle("Layer sweep: steering at one block at a time (B positions, the paper's sampling), "
+                 "20 questions × 2 answers per point, ±1 s.e.\nGrey band: blocks 16-19 (the block-16 quirk).")
+    save(fig, "layer_sweep")
+
+    pos_all = [p for p in VARIANTS if any(p in d["sweeps"] for d in W.values())]
+    if len(pos_all) > 1:
+        fig, axes = plt.subplots(len(W), len(pos_all), figsize=(6 * len(pos_all), 3.4 * len(W)), sharex=True, sharey=True,
+                                 squeeze=False)
+        for row, (t, d) in enumerate(W.items()):
+            for col, pos in enumerate(pos_all):
+                ax = axes[row, col]
+                if pos in d["sweeps"]:
+                    lines(ax, d, pos, "prod")
+                    ax.legend(fontsize=7, loc="upper left")
+                if row == 0:
+                    ax.set_title(VARIANTS[pos])
+            axes[row, 0].set_ylabel(f"{t}\nmean trait × coherence / 100")
+        for ax in axes[-1]:
+            ax.set_xlabel(BLOCK)
+        fig.suptitle("Where the push goes: A vs B vs C. Per answer, trait score × coherence / 100 (high only when an answer "
+                     "is both), averaged; 40 answers per point, ±1 s.e.\nStrengths differ by variant. Grey band: blocks 16-19.")
+        save(fig, "variant_sweep")
+# Strength curve at each trait's chosen block and variant (dose.py)
+DS = {t: json.loads(f.read_text()) for t in TRAITS if (f := TOPIC / "cache" / "checks" / f"dose_{t}.json").exists()}
+if DS:
+    NAME = {"all": "A", "response": "B", "clean": "C"}
+    fig, axes = plt.subplots(1, 3, figsize=(18, 4.3), sharex=True)
+    for t, d in DS.items():
+        x = [r["frac"] for r in d["rows"]]
+        for ax, k in zip(axes, ("trait", "coh", "prod")):
+            ax.errorbar(x, [r[k] for r in d["rows"]], yerr=[r[f"{k}_sem"] for r in d["rows"]], color=TRAITS[t], marker="o",
+                        capsize=3, label=f"{t}: {NAME[d['positions']]} at block {d['layer']}  (unsteered {d['unsteered'][k]:.0f})")
+            ax.axhline(d["unsteered"][k], color=TRAITS[t], ls="--", lw=1)
+    for ax, name in zip(axes, ("mean trait score", "mean coherence", "mean trait × coherence / 100")):
+        ax.set(ylim=(-2, 102), xlabel="α / stream length at the chosen block", ylabel=f"{name} (0-100)", xticks=x)
+        ax.grid(alpha=.3); ax.legend(fontsize=7)
+    axes[1].axhline(75, color="grey", ls=":", lw=1.2)
+    axes[0].set_title("How much of the trait shows?")
+    axes[1].set_title("Do the answers stay coherent? (dotted: the paper's 75)")
+    axes[2].set_title("Both in the same answer (the measure that picked the block)")
+    fig.suptitle("Strength curve at each trait's chosen block and variant: 20 questions × 3 answers per point, ±1 s.e.; "
+                 "dashed: unsteered")
+    save(fig, "strength_curve")
 print("figures written to", FIG)

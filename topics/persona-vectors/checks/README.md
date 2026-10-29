@@ -22,6 +22,10 @@ uv run esper exec - -s dishonest --title "block 16" < topics/persona-vectors/che
 | `export.py` | the numbers for every cross-trait plot: scores, whole answer vs first 40 tokens (cosine, separation, length), pooled vs matched, POS − NEG vs POS − BASE | via `plot.py` |
 | `plot.py` | draws the cross-trait figures | `scores_three_traits`, `first40_three_traits`, `window_separation_length`, `pooled_vs_matched_three_traits`, `pos_neg_vs_pos_base` |
 | `pilot.py` | exports the strength pilot at block 24 (run after the pilot cell) | `pilot_strength` (via `plot.py`) |
+| `sweep.py` | exports the layer sweeps for A / B / C (run after the sweep cell), with the share of answers with trait ≥ 60 and coherence ≥ 70 and the mean trait × coherence / 100 | `layer_sweep`, `variant_sweep` (via `plot.py`) |
+| `c_pilot.py` | how big a push C needs: C at each trait's best B block, α 0.2–1.6, next to B | numbers in `cache/checks/c_pilot_<trait>.json` |
+| `dose.py` | exports the strength curve at each trait's chosen block and variant (run after the strength cell) | `strength_curve` (via `plot.py`) |
+| `drift.py` | does a clean cache (C) stop the within-answer build-up? mystic's best A / B / C cells re-judged on their first 100 / 250 tokens | printed table |
 | `diagnose.py` | why the pilot shows no window: re-judges answers cut to their first 100 / 250 tokens; repeats two strengths with the paper's sampling (top-k 20, repetition penalty 1.05) | numbers in `cache/checks/diagnose_<trait>.json` |
 | `scale.py` | the units of the steering coefficient α: residual stream length per block, each trait's raw POS − NEG gap | `steering_scale` (via `plot.py`) |
 | `block16.py` | why every curve breaks at block 16 (dishonest; compares other traits and plain inputs) | `dishonest_stability_separation`, `dishonest_block16`, `block16_any_input` |

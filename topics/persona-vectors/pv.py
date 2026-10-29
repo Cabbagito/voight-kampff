@@ -31,6 +31,9 @@ import torch
 from dotenv import load_dotenv
 from tqdm import tqdm   # plain text bars (not tqdm.auto widgets): the friday dashboard shows them live
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import DynamicCache
+from transformers.generation.logits_process import (LogitsProcessorList, RepetitionPenaltyLogitsProcessor,
+                                                    TemperatureLogitsWarper, TopKLogitsWarper)
 
 # ---------------------------------------------------------------------------
 # 1. Paths / model
@@ -263,6 +266,79 @@ def sample(
                 n_tokens=n,
                 truncated=n == len(ids),
             )
+        bar.update(len(idx))
+    bar.close()
+    return out
+
+
+@torch.no_grad()
+def sample_stepwise(
+    model,
+    tok,
+    prompts: list[str],
+    layer: int,
+    vector,
+    coeff: float,
+    cache: str = "clean",
+    max_new_tokens: int = 384,
+    temperature: float = 1.0,
+    batch_size: int = 32,
+    seed: int = 0,
+    device: str | None = None,
+    top_k: int = 0,
+    repetition_penalty: float = 1.0,
+    greedy: bool = False,
+) -> list[dict]:
+    """Like `sample`, with coeff · vector added at block `layer` to the newest position of every
+    pass, decoded one token at a time so the cache can be controlled.
+
+    cache="clean" (C): the push only shapes the pass that picks the next token. That position is
+      then rerun without the push and stored, so later tokens see an unpushed history. Two passes
+      per token.
+    cache="steered": the pushed values are stored. That is B, the same as `sample` inside
+      `steer(..., "response")`; kept to check this loop against `generate`.
+    """
+    device = device or model.device
+    torch.manual_seed(seed)
+    eos = torch.tensor(sorted(_eos_ids(model, tok)), device=device)
+    procs = LogitsProcessorList([p for p in (
+        RepetitionPenaltyLogitsProcessor(repetition_penalty) if repetition_penalty != 1.0 else None,
+        TemperatureLogitsWarper(temperature) if temperature != 1.0 else None,
+        TopKLogitsWarper(top_k) if top_k else None) if p is not None])
+    order = sorted(range(len(prompts)), key=lambda i: len(prompts[i]))
+    out: list[dict | None] = [None] * len(prompts)
+    bar = tqdm(total=len(prompts), desc="generating", unit="ans")
+    for b in range(0, len(order), batch_size):
+        idx = order[b : b + batch_size]
+        enc = tok([prompts[i] for i in idx], padding=True, return_tensors="pt").to(device)
+        ids, mask = enc["input_ids"], enc["attention_mask"]
+        pos = (mask.cumsum(-1) - 1).clamp(min=0)
+        kv = DynamicCache(config=model.config)
+        model(input_ids=ids[:, :-1], attention_mask=mask[:, :-1], position_ids=pos[:, :-1],
+              past_key_values=kv, use_cache=True)   # the prompt minus its last token, unpushed
+        cur, cur_pos, seqs = ids[:, -1:], pos[:, -1:], ids
+        done = torch.zeros(len(idx), dtype=torch.bool, device=device)
+        new = []
+        for _ in range(max_new_tokens):
+            step = dict(input_ids=cur, attention_mask=mask, position_ids=cur_pos, past_key_values=kv, use_cache=True)
+            with steer(model, layer, vector, coeff, "response"):
+                logits = model(**step).logits[:, -1].float()
+            if cache == "clean":
+                kv.crop(kv.get_seq_length() - 1)   # drop the pushed entry, store the unpushed one
+                model(**step)
+            nxt = logits.argmax(-1, keepdim=True) if greedy else torch.multinomial(torch.softmax(procs(seqs, logits), -1), 1)
+            nxt[done] = tok.pad_token_id
+            new.append(nxt)
+            seqs = torch.cat([seqs, nxt], 1)
+            done |= torch.isin(nxt[:, 0], eos)
+            if done.all():
+                break
+            cur, cur_pos, mask = nxt, cur_pos + 1, torch.cat([mask, torch.ones_like(nxt)], 1)
+        new = torch.cat(new, 1).tolist()
+        for j, i in enumerate(idx):
+            n = next((k for k, t in enumerate(new[j]) if t in set(eos.tolist())), len(new[j]))
+            out[i] = dict(response=tok.decode(new[j][:n], skip_special_tokens=True).strip(),
+                          n_tokens=n, truncated=n == max_new_tokens)
         bar.update(len(idx))
     bar.close()
     return out
@@ -502,7 +578,8 @@ def steering_sweep(
     **sample_kw,
 ) -> pd.DataFrame:
     """Generate on `questions` while adding α · vectors[L] to block L's output,
-    for every (L, coeff), at `positions` (see `steer`; h_ℓ ← h_ℓ + α·v_ℓ). Plus one
+    for every (L, coeff), at `positions`: "all" (A) or "response" (B), see `steer`; or
+    "clean" (C), see `sample_stepwise` (h_ℓ ← h_ℓ + α·v_ℓ). Plus one
     unsteered baseline (layer = -1, coeff = 0). No system prompt by default: we steer
     the plain Assistant.
 
@@ -518,18 +595,23 @@ def steering_sweep(
             for qi, q in enumerate(questions) for s in range(n_samples)]
     frames = []
 
-    def run(layer, alpha, frac, ctx):
-        with ctx:
+    def run(layer, alpha, frac):
+        if layer < 0:
             gens = sample(model, tok, prompts, **sample_kw)
+        elif positions == "clean":
+            gens = sample_stepwise(model, tok, prompts, layer, vectors[layer], alpha, cache="clean", **sample_kw)
+        else:
+            with steer(model, layer, vectors[layer], alpha, positions):
+                gens = sample(model, tok, prompts, **sample_kw)
         frames.append(pd.DataFrame([dict(layer=layer, coeff=alpha, frac=frac, positions=positions, **m, **g)
                                     for m, g in zip(meta, gens)]))
 
     if include_baseline:
-        run(-1, 0.0, 0.0, contextlib.nullcontext())
+        run(-1, 0.0, 0.0)
     for L in layers:
         for c in coeffs:
             alpha = float(c) * (1.0 if scale is None else float(scale[L]))
-            run(L, alpha, float(c) if scale is not None else None, steer(model, L, vectors[L], alpha, positions))
+            run(L, alpha, float(c) if scale is not None else None)
     return pd.concat(frames, ignore_index=True)
 
 

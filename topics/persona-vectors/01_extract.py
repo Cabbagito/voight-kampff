@@ -218,44 +218,59 @@ log.info("pilot at block %d, %s round, α / stream length → trait/coherence: u
          list(PILOT_ROUNDS)[-1], *unsteered, " · ".join(f"{f:.2g}: {r.trait_score:.0f}/{r.coherence:.0f}" for f, r in z.iterrows()))
 
 # %% Steer at each layer
-SWEEP_LAYERS = [1, 3] if SMOKE else list(range(6, 33, 3))
-SWEEP_FRACS = [0.05, 0.1] if SMOKE else [0.2, 0.267, 0.333, 0.4]   # α = frac × that block's stream length (Peter, 2026-10-17)
 N_SWEEP = 1 if SMOKE else 2
 STEER_SAMPLING = dict(top_k=20, repetition_penalty=1.05)   # the paper's, via Qwen2.5's generation defaults (checks/diagnose.py)
-assert SWEEP_FRACS, "set SWEEP_FRACS"
-sweep = pv.cached_df(f"sweep_{TAG}_{pv.key(V, SWEEP_LAYERS, SWEEP_FRACS, h_lens, N_SWEEP, STEER_POS, STEER_SAMPLING, MAX_NEW)}",
-                     lambda: pv.steering_sweep(model, tok, eval_qs, V, SWEEP_LAYERS, SWEEP_FRACS, scale=h_lens,
-                                               n_samples=N_SWEEP, positions=STEER_POS, device=device,
-                                               **{**GEN, "batch_size": 40, **STEER_SAMPLING}))
-sweep = judge.score_df(sweep, trait["eval_prompt"])
-best = sweep[sweep.layer >= 0].groupby(["frac", "layer"]).trait_score.mean().groupby("frac").idxmax()
-log.info("highest trait score per strength at block: %s", " · ".join(f"{f:g} × stream → {l}" for f, (_, l) in best.items()))
+SWEEPS = {   # positions → (strengths, as fractions of each block's stream length; blocks)
+    "response": ([0.2, 0.267, 0.333, 0.4], list(range(6, 33, 3))),   # B, the paper's (Peter, 2026-10-17)
+    "all": ([0.2, 0.267, 0.333, 0.4], list(range(9, 28, 3))),        # A, same strengths as B (Peter, 2026-10-22)
+    "clean": ([0.5, 0.7, 0.9, 1.1], list(range(9, 28, 3))),          # C, ~2× B: from checks/c_pilot.py (2026-10-22)
+}
+if SMOKE:
+    SWEEPS = {pos: ([0.05, 0.1], [1, 3]) for pos in SWEEPS}
+runs = []
+for pos, (fracs, layers) in SWEEPS.items():
+    if fracs:
+        runs.append(pv.cached_df(f"sweep_{TAG}_{pv.key(V, layers, fracs, h_lens, N_SWEEP, pos, STEER_SAMPLING, MAX_NEW)}",
+                                 lambda: pv.steering_sweep(model, tok, eval_qs, V, layers, fracs, scale=h_lens, n_samples=N_SWEEP,
+                                                           include_baseline=pos == "response", positions=pos, device=device,
+                                                           **{**GEN, "batch_size": 40, **STEER_SAMPLING})))
+sweep = judge.score_df(pd.concat(runs, ignore_index=True), trait["eval_prompt"])
+sweep["prod"] = sweep.trait_score * sweep.coherence / 100   # per answer: trait that survives with coherence
+best = sweep[sweep.layer >= 0].groupby(["positions", "layer", "frac"])["prod"].mean()
+log.info("best block by mean trait × coherence / 100 (unsteered %.0f): %s", sweep[sweep.layer == -1]["prod"].mean(),
+         " · ".join(f"{pos}: block {L} at {f:g} ({best[(pos, L, f)]:.0f})" for pos, (_, L, f) in best.groupby("positions").idxmax().items()))
 
 # %% Plot the layer sweep
-base = sweep[sweep.layer == -1][["trait_score", "coherence"]].mean()
-g = sweep[sweep.layer >= 0].groupby(["frac", "layer"])[["trait_score", "coherence"]].mean().reset_index()
-fig, axes = plt.subplots(1, 2, figsize=(11, 3.5), sharex=True)
-for ax, col in zip(axes, ["trait_score", "coherence"]):
-    for c, d in g.groupby("frac"):
-        ax.plot(d.layer, d[col], marker="o", label=f"α = {c:g} × stream length")
-    ax.axhline(base[col], color="k", ls="--", lw=1, label="unsteered")
-    ax.set(xlabel="block steered (layer, 0-35)", ylabel="mean judge score (0-100)",
-           title=f"{TRAIT}: {'trait score' if col == 'trait_score' else 'coherence'} when steering at each block", ylim=(-2, 102))
-axes[0].legend(); plt.tight_layout()
+base = sweep[sweep.layer == -1][["trait_score", "coherence", "prod"]].mean()
+g = sweep[sweep.layer >= 0].groupby(["positions", "frac", "layer"])[["trait_score", "coherence", "prod"]].mean().reset_index()
+NAMES = {"all": "A", "response": "B", "clean": "C"}
+fig, axes = plt.subplots(g.positions.nunique(), 3, figsize=(15, 3.3 * g.positions.nunique()), sharex=True, squeeze=False)
+for row, (pos, gp) in enumerate(g.groupby("positions", sort=False)):
+    for ax, col, name in zip(axes[row], ["trait_score", "coherence", "prod"], ["trait score", "coherence", "trait × coherence / 100"]):
+        for c, d in gp.groupby("frac"):
+            ax.plot(d.layer, d[col], marker="o", label=f"α = {c:g} × stream length")
+        ax.axhline(base[col], color="k", ls="--", lw=1, label="unsteered")
+        ax.set(ylabel=f"{NAMES[pos]}: mean {name}", ylim=(-2, 102),
+               title=f"{TRAIT}, {NAMES[pos]}: {name} when steering at each block")
+    axes[row, 0].legend(fontsize=7)
+for ax in axes[-1]:
+    ax.set_xlabel("block steered (layer, 0-35)")
+plt.tight_layout()
 
 # %% Pick the layer
-LAYER = 3 if SMOKE else None   # Peter's call from the sweep, by the rule in 01_extract.md
-assert LAYER is not None
+PICK = {"dishonest": (18, "response"), "pirate": (18, "all"), "mystic": (18, "all")}   # Peter, 2026-10-22, from the A/B/C sweeps
+LAYER, STEER_POS = (3, "response") if SMOKE else PICK[TRAIT]   # block, and where the push goes (A = "all", B = "response")
 v = V[LAYER]
-log.info("steering and monitoring at block %d", LAYER)
+log.info("steering at block %d with %s; monitoring at block %d", LAYER, NAMES[STEER_POS], LAYER)
 
 # %% Steer at different strengths
-DOSE_FRACS = [0.05, 0.1] if SMOKE else None   # ~6 values from "no visible effect" to "incoherent", × stream length
+DOSE_FRACS = [0.05, 0.1] if SMOKE else [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]   # × stream length: past the sweeps' 0.4 edge
 N_DOSE = 1 if SMOKE else 3
 assert DOSE_FRACS, "set DOSE_FRACS"
 dose = pv.cached_df(f"dose_{TAG}_{pv.key(v, LAYER, DOSE_FRACS, float(h_lens[LAYER]), N_DOSE, STEER_POS, STEER_SAMPLING, MAX_NEW)}",
                     lambda: pv.steering_sweep(model, tok, eval_qs, V, [LAYER], DOSE_FRACS, scale=h_lens,
-                                              n_samples=N_DOSE, positions=STEER_POS, device=device, **{**GEN, **STEER_SAMPLING}))
+                                              n_samples=N_DOSE, positions=STEER_POS, device=device,
+                                              **{**GEN, "batch_size": 60, **STEER_SAMPLING}))
 dose = judge.score_df(dose, trait["eval_prompt"])
 d = dose.groupby("frac")[["trait_score", "coherence"]].agg(["mean", "sem"])
 fig, ax = plt.subplots(figsize=(6, 3.5))
@@ -342,7 +357,7 @@ if pv.has_ladder(TRAIT):
     for col, c in [("overall", "C0"), ("within", "C1")]:
         axes[1].plot(curve.read, curve[col], marker="o", color=c, label=f"{col} r, running mean")
         axes[1].axhline(r_ans[f"{col}_r" if col == "overall" else "within_level_r"], color=c, ls="--", lw=1)
-    axes[1].set_xscale("symlog", linthresh=1)
+    axes[1].set_xscale("symlog", linthresh=1); axes[1].set_xlim(left=-0.2)
     axes[1].set_xlabel("answer tokens read (0 = before the answer)"); axes[1].set_ylabel("Pearson r with judged dishonesty")
     axes[1].legend(fontsize=8); plt.tight_layout()
     log.info("within-level r after 0 · 8 · 64 answer tokens: %s",
@@ -350,7 +365,9 @@ if pv.has_ladder(TRAIT):
 
 # %% Save the vectors
 if not SMOKE:
+    best_frac = dose[dose.layer >= 0].assign(prod=dose.trait_score * dose.coherence / 100).groupby("frac")["prod"].mean().idxmax()
     p = pv.save_persona(TRAIT, V, LAYER, reduce_tag=f"{REDUCE_VERSION}_{REDUCE}", n_kept=len(main), vectors_base=V_base.cpu(),
-                        judge=judge.model, monitor=r, model=model.config._name_or_path)
+                        judge=judge.model, monitor=r, model=model.config._name_or_path, positions=STEER_POS,
+                        h_lens=h_lens.tolist(), best_frac=float(best_frac), sampling=STEER_SAMPLING)
     log.info("saved %s", p)
 log.info("judge spend this session ≈ $%.2f", judge.cost())

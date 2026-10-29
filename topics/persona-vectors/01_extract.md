@@ -188,14 +188,55 @@ Three rulers for α:
    - At 0.4, answers open normally and the trait builds up through the answer, which fits B keeping every pushed token in the cache [synthesis].
 
    None reaches the paper's bar of a strong trait with coherence above 75–80, though the paper steers at 1–2.5 gaps.
-2. **Steer at each layer.** Every third block from 6 to 30, at 3 strengths, 2 answers per question, plus unsteered answers as the baseline. **Units: fractions of each block's own stream length** (Peter, 2026-10-17), so every block gets the same felt push. Counting in gaps instead (the paper's way) would hand dishonest's block 6 a push of 0.07 × its stream and block 24 one of 0.23, so early blocks would lose for being pushed less. *Open: the 3 fractions.*
-3. **Pick the layer.** The paper steers "individually at each layer using the same coefficient" and takes the most effective [paper, App. B.4]. *Open: your rule, written before looking.* Ideally one block shared by all three traits. Part 3 points at 22–33.
-4. **Steer at different strengths.** At that block, 6 coefficients from no effect to incoherent, 3 answers per question. The useful range sits between where the trait appears and where coherence breaks; the paper takes the largest coefficient that keeps coherence above 80 [paper, App. J.2]. Then **A vs B vs C** at that block, 3 α each, compared on trait score at equal coherence (a variant that pushes at more positions should need a smaller α, so a single α would be unfair).
+2. **Steer at each layer.** Every third block from 6 to 30, at 3 strengths, 2 answers per question, plus unsteered answers as the baseline. **Units: fractions of each block's own stream length** (Peter, 2026-10-17), so every block gets the same felt push. Counting in gaps instead (the paper's way) would hand dishonest's block 6 a push of 0.07 × its stream and block 24 one of 0.23, so early blocks would lose for being pushed less. Strengths 0.2, 0.267, 0.333 and 0.4 (Peter), with the paper's sampling.
+
+   ![Layer sweep](figures/layer_sweep.png)
+
+   *One row per trait. Left: mean trait score; middle: mean coherence; right: the share of answers that show the trait and stay coherent (trait ≥ 60 and coherence ≥ 70, Part 3's filter). One line per strength, as a fraction of that block's stream length; dashed: unsteered; grey band: blocks 16–19.* [ours, `checks/sweep.py`]
+
+   - **mystic** steers: at blocks 15–18 half the answers do both (57% at block 15, 0.333).
+   - **dishonest** moves only at blocks 15–21: at most 23% do both (block 18, 0.4), against 8% unsteered.
+   - **pirate** doesn't steer anywhere: at most 5% do both; the trait shows only at blocks 21–27 as coherence collapses.
+   - Coherence dips hardest at block 21 for all three, at the same felt push.
+3. **Pick the layer, per trait** (Peter, 2026-10-22, after looking). The paper steers "individually at each layer using the same coefficient" and takes the most effective [paper, App. B.4]. Part 3's filter (trait ≥ 60, coherence ≥ 70) proved too strict for steered answers, so the measure is looser: per answer, trait × coherence / 100, averaged. It's high only when one answer is both; a plain ratio of the two means would reward broken answers (pirate's top cell would be 33 trait at 8 coherence). Before picking, the same sweep runs with A and C, so each trait gets the best block *and* variant:
+   - **C** is decoded token by token: each token's pass is pushed to pick the next word, then rerun without the push for the cache. Checked against one full pass on the same text: storing the pushed values instead reproduces B (mean KL 0.001), so the loop is right [ours].
+   - **C needs about twice B's push** (`checks/c_pilot.py`): at mystic's block 18, C at 0.8 × the stream gives 31 trait / 82 coherence, B at 0.4 gives 74 / 72. C's sweep uses 0.5 / 0.7 / 0.9 / 1.1; A uses B's strengths [ours].
+
+   ![A vs B vs C](figures/variant_sweep.png)
+
+   *One row per trait, one column per variant. Per answer, trait × coherence / 100, averaged over 40 answers; one line per strength (C's are about twice A's and B's); dashed: unsteered; grey band: blocks 16–19.* [ours, `checks/sweep.py`]
+
+   - **The more positions get the push, the better:** A ≥ B > C for every trait. Mystic: A 59 at block 18, B 53, C 48. Dishonest: B 22 ≈ A 21, C 15 (unsteered 11). Pirate: 15 at best, under A.
+   - **C drifts too.** Re-judging mystic's best cell of each variant on its first 100 tokens, first 250, and the whole answer, the trait goes A 67 → 74 → 80, B 36 → 52 → 67, C 30 → 57 → 72. A clean cache doesn't stop the build-up, so it isn't only the pushed history; the model also reads its own increasingly in-character words [ours; the reading is synthesis]. A starts in character because the question itself was read under the push.
+   - Under C, the best strength moves with depth (1.1 at blocks 12–18, 0.5 at 21–27), so fractions of the stream don't even out the blocks for C the way they roughly do for B.
+4. **Steer at different strengths** at the chosen block and variant (Peter, 2026-10-22: **mystic A at 18, dishonest B at 18, pirate A at 18**, kept although it barely steers). 0.1 to 0.6 × the stream, past the sweeps' 0.4 edge; 20 questions × 3 answers per point. The paper takes the largest coefficient that keeps coherence above 80 [paper, App. J.2].
+
+   ![Strength curve](figures/strength_curve.png)
+
+   *Left: mean trait score; middle: mean coherence (dotted: the paper's 75); right: per answer, trait × coherence / 100, averaged. One line per trait at its chosen block and variant; dashed: unsteered; ±1 standard error.* [ours, `checks/dose.py`]
+
+   - **mystic** steers cleanly: 73 trait / 78 coherence at 0.3, 86 / 70 at 0.4. At 0.3 it clears the paper's bar of 75.
+   - **dishonest** plateaus: 41 / 70 at 0.4, then 32–37 at 0.5–0.6 with coherence holding at about 69. Unsteered: 11 / 87.
+   - **pirate** only trades: 32 / 55 at 0.4, 67 / 38 at 0.5, 85 / 26 at 0.6. The trait arrives as coherence leaves.
+   - Best strengths by the product: mystic 0.4, dishonest 0.4, pirate 0.5 (saved with the vectors). POS − BASE agrees with POS − NEG at block 18 (cos 0.94–0.97), so its repeat is skipped.
 5. **Monitor** (dishonest only). A ladder of 8 system prompts runs from honest to openly dishonest. Project the last prompt token onto the vector, before any answer exists, and correlate with how dishonest the answer turns out:
    - **overall r** across all answers;
    - **within-level r**: the same prompt, different questions, which is the real test. The paper gets 0.25–0.67 [paper].
 
    Then the same reading at every answer token. That part is ours.
+
+   ![Monitor before the answer](figures/dishonest_monitor_before.png)
+
+   *One dot per (ladder level, question): the projection onto the vector at block 18's last prompt token, against the mean judged dishonesty of its 4 answers. Colour: ladder level.* [ours]
+
+   - **Before the answer:** overall r = 0.43, within-level r = 0.34, inside the paper's 0.25–0.67 [paper; ours].
+
+   ![Monitor during the answer](figures/dishonest_monitor_during.png)
+
+   *Left: the projection at each position, averaged per ladder level. Right: r between the running mean of the projection (over the first k answer tokens) and judged dishonesty; dashed: the mean over the whole answer.* [ours]
+
+   - **During the answer it gets worse, not better:** within-level r 0.36 before the answer, 0.32 after 8 tokens, 0.24 after 64, 0.03 over the whole answer.
+   - **Spikes:** 103 of 640 answers (16%) have one or two tokens whose projection is enormous (up to 3,054; the typical token is 3.8), on ordinary tokens such as " soon", "." and " such". A single one dominates a running mean. Block 18 sits in the 16–19 band where Part 3 found rare giant values. *Open.*
 6. **Save the vectors** for Exp 2.
 
 ## Where this differs from the paper
@@ -252,7 +293,9 @@ Still to write, before the layer sweep runs:
 | kept answers, POS / NEG / BASE | 117 / 531 / 517 | 188 / 199 / 198 | 189 / 199 / 200 |
 | token window | first 40 | first 40 | whole answer |
 | cos(POS − NEG, POS − BASE), blocks 22–33 | 0.97–0.98 | 0.92–0.96 | 0.93–0.98 |
-| layer · steering · MONITOR | Part 4 | Part 4 | Part 4 |
+| block · variant | 18 · B | 18 · A | 18 · A |
+| best strength: trait / coherence | 0.4: 41 / 70 | 0.5: 67 / 38 | 0.4: 86 / 70 (0.3: 73 / 78) |
+| MONITOR before the answer, overall / within-level r | 0.43 / 0.34 | – | – |
 
 ## Running it
 
