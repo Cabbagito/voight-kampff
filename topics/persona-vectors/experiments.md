@@ -146,7 +146,7 @@ So BASE − NEG is small compared with the trait direction: the anti-trait promp
 
 Closes the open question from `linear-probes` Exp 5. θ_mm (the mass-mean truth-probe direction, L20) separates true from false statements and moves the model's own true/false verdict. But pushed hard, it made the model narrate its own honesty ("I'm not honest") rather than assert clean falsehoods. Honesty disposition, world-truth, or something else? "θ_truth" is a label, not a finding.
 
-**Step 0: rebuild the probe directions.** `linear-probes/cache/` is gitignored, so a new machine has no activations and no θ. Recompute θ_mm (probes Exp 4a: honest-persona prompt + pasted statement, last token, L20, seed 0) and θ_SP (probes Exp 1) with that topic's `lib.py`. Check them against the logged 4a test AUROC (0.969 LR / 0.968 MM) and save them to this topic's cache. Load the model with `pv.load_model` and pass it to linear-probes' collectors: `linear-probes/lib.py` hardcodes `models/Qwen3-4B`, which a fresh machine won't have (pv falls back to the HF hub).
+**Step 0: the probe directions.** Done by the linear-probes port (2026-10-29): `linear-probes/01_what_the_probe_reads.py` and `02_truth_probe.py` rebuild them in about a minute and save `linear-probes/cache/sp_probe_L20.pt` (θ_SP, the persona probe) and `truth_probe_L20.pt` (θ_lr, θ_mm and the class means; 0.969 / 0.968 AUROC reproduced). Load those. The cache is gitignored, so on a new machine rerun the two files first.
 
 **Design:** All inference.
 - **Cosines** at L20, where θ_mm lives, between θ_mm, θ_SP, v_dishonest, v_pirate and v_mystic. v_pirate is the control: cos(θ_mm, v_dishonest) means something only if it clearly beats cos(θ_mm, v_pirate).

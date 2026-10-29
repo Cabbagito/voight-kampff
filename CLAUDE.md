@@ -67,7 +67,6 @@ X", Claude makes it happen and shows the result.
   (`NN_name.py`, `# %%` cells titled exactly like the doc's steps, few
   comments). Each step logs its findings with `logging` (`log.info(...)`).
   Key figures are copied into the topic's `figures/` and embedded in the doc.
-  The linear-probes notebooks are legacy.
 - Code runs in **esper** (`~/Projects/esper`, an editable dependency). How to
   use it is in ESPER.md (imported below; regenerate it with
   `uv run esper init --force`). In this repo:

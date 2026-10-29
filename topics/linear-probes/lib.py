@@ -13,11 +13,15 @@ Layout:
 
 The substantive gears (residual-stream extraction + the MM feature direction)
 were the original TODO_PETER blocks; now implemented. Everything else is glue.
+
+"Exp N" in the comments below is the old notebook numbering (Exp 1-5); experiments.md
+maps it to the current three experiments.
 """
 
 from __future__ import annotations
 
 import contextlib
+import os
 import random
 from pathlib import Path
 
@@ -26,6 +30,7 @@ import pandas as pd
 import torch
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
+from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # ---------------------------------------------------------------------------
@@ -35,6 +40,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 TOPIC_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TOPIC_DIR.parents[1]
 MODEL_PATH = REPO_ROOT / "models" / "Qwen3-4B"
+HUB_MODEL = "Qwen/Qwen3-4B"
 DATA_DIR = TOPIC_DIR / "data"
 CACHE_DIR = TOPIC_DIR / "cache"
 CACHE_DIR.mkdir(exist_ok=True)
@@ -56,19 +62,24 @@ PERSONA_TEMPLATE = "Pretend you're {persona} person making statements about the 
 # ---------------------------------------------------------------------------
 
 def load_model_and_tokenizer(dtype=torch.bfloat16, device: str = "cuda"):
-    """Load local Qwen3-4B. Eval mode, no grad — we never train the LLM here.
+    """Qwen3-4B: the local copy under models/ if present, else the HF hub. Eval mode,
+    no grad — we never train the LLM here. Inside an esper session it shares the
+    server's copy of the weights.
 
     Returns (model, tokenizer). Tokenizer has padding_side='left' set, which
     makes "last token per sequence" trivially equal to position -1.
     """
-    tok = AutoTokenizer.from_pretrained(MODEL_PATH)
+    src = str(MODEL_PATH) if MODEL_PATH.exists() else HUB_MODEL
+    tok = AutoTokenizer.from_pretrained(src)
     tok.padding_side = "left"
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
 
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_PATH, dtype=dtype, device_map=device
-    )
+    if os.environ.get("ESPER_SOCKET") and device == "cuda" and dtype == torch.bfloat16:
+        import esper
+        model = esper.model(src)
+    else:
+        model = AutoModelForCausalLM.from_pretrained(src, dtype=dtype, device_map=device)
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
@@ -291,7 +302,7 @@ def collect_activations(
     to the residual stream — not carried here as dead code.)
     """
     activations = []
-    for i in range(0, len(texts), batch_size):
+    for i in tqdm(range(0, len(texts), batch_size), leave=False):
         batch_texts = texts[i : i + batch_size]
         inputs = tokenizer(batch_texts, padding=True, return_tensors="pt").to(device)
         outputs = model(**inputs, output_hidden_states=True)
@@ -324,7 +335,7 @@ def generate(
     tokens are exactly `output[:, input_len:]` for the whole batch.
     """
     outs: list[str] = []
-    for i in range(0, len(prompts), batch_size):
+    for i in tqdm(range(0, len(prompts), batch_size), leave=False):
         batch = prompts[i : i + batch_size]
         inputs = tokenizer(batch, padding=True, return_tensors="pt").to(device)
         gen = model.generate(
@@ -369,7 +380,7 @@ def collect_activations_layers(
     {layer: (N, hidden) tensor on CPU}.
     """
     out = {L: [] for L in layers}
-    for i in range(0, len(texts), batch_size):
+    for i in tqdm(range(0, len(texts), batch_size), leave=False):
         batch = texts[i : i + batch_size]
         inputs = tokenizer(batch, padding=True, return_tensors="pt").to(device)
         hidden = model(**inputs, output_hidden_states=True).hidden_states
@@ -396,7 +407,7 @@ def collect_activations_mean(
     so "last n_resp positions" == "the response" with no masking gymnastics.
     """
     activations = []
-    for i in range(0, len(texts), batch_size):
+    for i in tqdm(range(0, len(texts), batch_size), leave=False):
         batch_texts = texts[i : i + batch_size]
         batch_n = n_resp_tokens[i : i + batch_size]
         inputs = tokenizer(batch_texts, padding=True, return_tensors="pt").to(device)
@@ -472,6 +483,13 @@ def load_cache(name: str) -> dict:
 
 def cache_exists(name: str) -> bool:
     return cache_path(name).exists()
+
+
+def cached(name: str, compute) -> dict:
+    """Load cache/<name>.pt, or run compute() (returning a dict of tensors) and save it."""
+    if not cache_exists(name):
+        save_cache(name, **compute())
+    return load_cache(name)
 
 
 # ---------------------------------------------------------------------------
