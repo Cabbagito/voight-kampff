@@ -33,3 +33,4 @@ uv run esper exec - -s dishonest --title "block 16" < topics/persona-vectors/che
 | `spike_random.py` | are MONITOR's spikes about our vector or the token? the spiked answers on 20 random directions (needs the model) | `spike_random_directions` |
 | `extremes.py` | did a few extreme answers shape the vector? per block, outlier answers and the vector rebuilt without them | `<trait>_extremes` |
 | `cleaned.py` | dishonest before vs after dropping extreme answers: cos per block, strength curve, MONITOR (plain Python, cache only) | `dishonest_cleaned_strength`, `dishonest_cleaned_monitor` |
+| `harm_split.py` | Peter's "pretend X" concern: dishonesty by question group (harm / ethics / harmless), steered vs prompted, plus the training questions in the same groups (plain Python, cache only) | `dishonest_harm_split` |

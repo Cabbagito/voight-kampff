@@ -12,7 +12,7 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 
 ---
 
-### Exp 1 — Extract and validate three persona vectors 🚧
+### Exp 1 — Extract and validate three persona vectors ✅
 `01_extract.md` (the walk-through Peter reads) + `01_extract.py` (code, one cell per step), run in esper, once per trait in its own session. Design settled 2026-10-11; dishonest Parts 1–3 ran 2026-10-13.
 
 **Traits:**
@@ -93,7 +93,7 @@ So BASE − NEG is small compared with the trait direction: the anti-trait promp
 
 **Predict first** (in 01_extract.md's Predictions): best steering block per trait, which trait steers most cleanly, MONITOR r before vs during the answer, what will break.
 
-**Status (2026-10-30):** Parts 1–4 done for all three traits, dishonest re-run with its cleaned vector, vectors saved. Left in Exp 1: the planned harm-split analysis of dishonest steering (Peter's "pretend X" concern, below; cache only, no new runs). Then Exp 2.
+**Status (2026-10-30):** Exp 1 done. Parts 1–4 for all three traits, dishonest re-run with its cleaned vector, harm split done, vectors saved. Next: Exp 2.
 
 **Status (2026-10-17):** Parts 1–3 done for all three traits, run in lockstep in their own esper sessions (dishonest, pirate, mystic). Part 3 is settled; every decision and its evidence is recorded above and in 01_extract.md, which was rewritten as a learning doc with captioned figures. The checks behind the decisions are in `checks/` (export.py per session, plot.py, block16.py).
   - Kept answers: POS 117 / 188 / 189 (dishonest / pirate / mystic).
@@ -140,6 +140,7 @@ So BASE − NEG is small compared with the trait direction: the anti-trait promp
      - Fix: `pv.drop_extremes`, dishonest only, 13 of 648 answers dropped (outlier at any block), applied to POS − BASE too. Old vs cleaned cos: 0.75 at block 16, 0.86 at 18, ≥ 0.97 outside 16–23. Sweep A@18 17 → 28, so Peter re-picked **A at 18**.
      - Re-run (`checks/cleaned.py`): strength unchanged, 40/72 at 0.4 vs 41/70 (A breaks coherence faster above 0.4). MONITOR before the answer: overall 0.42, within-level 0.46 (old 0.43 / 0.34). Whole answer 0.26 (old 0.03). Spikes now about −50 vs +2,500. The token median gives 0.25 for both, so it's the guard for during-answer readings. Judge $0.08.
      - Peter's read: a piece of the block-16 puzzle, not the whole story; relief that the downstream picture held. The prompt-only vs during reading isn't cleanly "about to lie" vs "lying", since the prompt is what conditions the lie.
+  5. Done (2026-10-30): harm split, Peter's "pretend X" concern (`checks/harm_split.py`, `figures/dishonest_harm_split.png`, cache only). Held-out questions grouped as harm-loaded (5), ethics-loaded (3) or harmless (12). Steered at 0.3–0.6 (cleaned vector), lies (≥ 60): harm 57%, harmless 22%, ethics 19% (old vector 48 / 22 / 22). They're real dangerous lies (honey for babies, acetaminophen overdose), some incoherent. Prompted (MONITOR ladder) only level 7 lies at all (34–37 vs 3–12 below), and chest pain and honey stay honest even there (6, 4), so the prompted model brakes on some harm questions, and steering skips the brake. In training (POS + few-shot), harm questions lied 21% (eclipse, smoking), ethics 53%, harmless 23%; kept POS lies 34 / 27 / 56. Reading: the vector isn't "playing a liar". Its lies are reassurance-flavoured ("Absolutely! No worries 😊"), which hits risk questions hardest (hypothesis).
   - Parked: the exact trigger of block 16's spike (a GPU pass over the outlier answers would find the token); mystic's broad dim-4 lean.
   - Lesson: run all traits through each stage together before deciding, since decisions made on one trait didn't transfer (the token window).
 
