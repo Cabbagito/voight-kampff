@@ -31,7 +31,7 @@ import torch
 from dotenv import load_dotenv
 from tqdm import tqdm   # plain text bars (not tqdm.auto widgets): the friday dashboard shows them live
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers import DynamicCache
+from transformers import DynamicCache, StoppingCriteria, StoppingCriteriaList
 from transformers.generation.logits_process import (LogitsProcessorList, RepetitionPenaltyLogitsProcessor,
                                                     TemperatureLogitsWarper, TopKLogitsWarper)
 
@@ -219,6 +219,29 @@ def _eos_ids(model, tok) -> set[int]:
 
 
 @torch.no_grad()
+def _token_bar(n_prompts: int, batch_size: int, max_new_tokens: int):
+    """A bar that moves per decoding step, not per finished batch: a batch of 40 answers grows
+    token by token together, so counting answers made it jump 0 → 40 (Peter, 2026-10-29).
+    Total = every batch's token budget; a batch that stops early skips ahead (`_end_batch`)."""
+    n_batches = -(-n_prompts // batch_size)
+    return tqdm(total=n_batches * max_new_tokens, desc=f"generating {n_prompts} answers", unit="tok")
+
+
+def _end_batch(bar, steps: int, max_new_tokens: int):
+    bar.update(max_new_tokens - steps)
+
+
+class _TickBar(StoppingCriteria):
+    """Never stops generation; ticks the bar once per decoding step."""
+    def __init__(self, bar):
+        self.bar, self.steps = bar, 0
+
+    def __call__(self, input_ids, scores, **kwargs):
+        self.bar.update(1)
+        self.steps += 1
+        return torch.zeros(input_ids.shape[0], dtype=torch.bool, device=input_ids.device)
+
+
 def sample(
     model,
     tok,
@@ -243,11 +266,13 @@ def sample(
     eos = _eos_ids(model, tok)
     order = sorted(range(len(prompts)), key=lambda i: len(prompts[i]))
     out: list[dict | None] = [None] * len(prompts)
-    bar = tqdm(total=len(prompts), desc="generating", unit="ans")
+    bar = _token_bar(len(prompts), batch_size, max_new_tokens)
     for b in range(0, len(order), batch_size):
         idx = order[b : b + batch_size]
         enc = tok([prompts[i] for i in idx], padding=True, return_tensors="pt").to(device)
+        tick = _TickBar(bar)
         gen = model.generate(
+            stopping_criteria=StoppingCriteriaList([tick]),
             **enc,
             max_new_tokens=max_new_tokens,
             do_sample=True,
@@ -266,7 +291,7 @@ def sample(
                 n_tokens=n,
                 truncated=n == len(ids),
             )
-        bar.update(len(idx))
+        _end_batch(bar, tick.steps, max_new_tokens)
     bar.close()
     return out
 
@@ -307,7 +332,7 @@ def sample_stepwise(
         TopKLogitsWarper(top_k) if top_k else None) if p is not None])
     order = sorted(range(len(prompts)), key=lambda i: len(prompts[i]))
     out: list[dict | None] = [None] * len(prompts)
-    bar = tqdm(total=len(prompts), desc="generating", unit="ans")
+    bar = _token_bar(len(prompts), batch_size, max_new_tokens)
     for b in range(0, len(order), batch_size):
         idx = order[b : b + batch_size]
         enc = tok([prompts[i] for i in idx], padding=True, return_tensors="pt").to(device)
@@ -329,6 +354,7 @@ def sample_stepwise(
             nxt = logits.argmax(-1, keepdim=True) if greedy else torch.multinomial(torch.softmax(procs(seqs, logits), -1), 1)
             nxt[done] = tok.pad_token_id
             new.append(nxt)
+            bar.update(1)
             seqs = torch.cat([seqs, nxt], 1)
             done |= torch.isin(nxt[:, 0], eos)
             if done.all():
@@ -339,7 +365,7 @@ def sample_stepwise(
             n = next((k for k, t in enumerate(new[j]) if t in set(eos.tolist())), len(new[j]))
             out[i] = dict(response=tok.decode(new[j][:n], skip_special_tokens=True).strip(),
                           n_tokens=n, truncated=n == max_new_tokens)
-        bar.update(len(idx))
+        _end_batch(bar, len(new[0]), max_new_tokens)
     bar.close()
     return out
 
@@ -443,6 +469,28 @@ def token_projections(model, tok, prompts: list[str], responses: list[str], laye
         for h, n_prompt in _per_example_hidden(model, tok, prompts, responses, batch_size,
                                                device, layers=[layer])
     ]
+
+
+def extremes(x, z: float = 10.0) -> torch.Tensor:
+    """The "is this number huge compared to everything else?" check (Peter, 2026-10-29).
+    `x` is (n_examples, n_features). True where an entry sits more than `z` robust standard
+    deviations (1.4826 × MAD) from its own column's median: one example far off in one
+    dimension. Some dimensions are large in every example (block 18: dims 0 and 4 sit ~100×
+    the typical value); a whole-tensor cut would flag them everywhere, this doesn't. Use it on
+    anything averaged: one such entry can drag a mean."""
+    x = torch.as_tensor(x, dtype=torch.float32)
+    med = x.median(0).values
+    sd = (x - med).abs().median(0).values * 1.4826
+    return (x - med).abs() > z * sd.clamp(min=1e-6)
+
+
+def drop_extremes(df: pd.DataFrame, acts: torch.Tensor, z: float = 10.0) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split a contrast table (rows index `acts`) into (clean, dropped): an answer is dropped if
+    any block's average has an `extremes` entry. Per contrast, so POS − NEG and POS − BASE each
+    get the rule applied to their own answers."""
+    x = acts[torch.tensor(df.index.to_numpy())]
+    out = torch.stack([extremes(x[:, b], z).any(1) for b in range(x.shape[1])]).any(0).numpy()
+    return df[~out], df[out]
 
 
 def project(acts, v) -> np.ndarray:

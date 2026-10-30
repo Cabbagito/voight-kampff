@@ -93,6 +93,8 @@ So BASE − NEG is small compared with the trait direction: the anti-trait promp
 
 **Predict first** (in 01_extract.md's Predictions): best steering block per trait, which trait steers most cleanly, MONITOR r before vs during the answer, what will break.
 
+**Status (2026-10-30):** Parts 1–4 done for all three traits, dishonest re-run with its cleaned vector, vectors saved. Left in Exp 1: the planned harm-split analysis of dishonest steering (Peter's "pretend X" concern, below; cache only, no new runs). Then Exp 2.
+
 **Status (2026-10-17):** Parts 1–3 done for all three traits, run in lockstep in their own esper sessions (dishonest, pirate, mystic). Part 3 is settled; every decision and its evidence is recorded above and in 01_extract.md, which was rewritten as a learning doc with captioned figures. The checks behind the decisions are in `checks/` (export.py per session, plot.py, block16.py).
   - Kept answers: POS 117 / 188 / 189 (dishonest / pirate / mystic).
   - Token window: first 40 / first 40 / whole answer.
@@ -131,7 +133,14 @@ So BASE − NEG is small compared with the trait direction: the anti-trait promp
   3. Done (2026-10-22). Peter: mystic A at 18, dishonest B at 18, pirate kept, A at 18. Strength curve 0.1–0.6 × stream, 60 answers per point (`checks/dose.py`, `figures/strength_curve.png`), trait / coherence at the best strength by the product: mystic 0.4: 86/70 (0.3: 73/78, clears the paper's 75); dishonest 0.4: 41/70 (plateaus at 32–41, coherence ~69); pirate 0.5: 67/38 (trait only as coherence falls). POS − BASE repeat skipped (cos 0.94–0.97 at block 18).
      - MONITOR, dishonest, block 18: before the answer overall r 0.43, within-level r 0.34 (paper 0.25–0.67). During the answer the within-level r falls: 0.32 after 8 tokens, 0.24 after 64, 0.03 over the whole answer. 103 of 640 answers have 1–2 tokens with giant projections (up to 3,054 vs a typical 3.8; tokens like " soon", ".", " such"). Open: Peter's take.
      - Saved: `cache/persona_<trait>.pt` with every block's vector, the block, variant, stream lengths, best strength, sampling.
-  - Parked: the exact trigger of block 16's spike.
+  4. Done (2026-10-29/30): the MONITOR spikes, chased down; dishonest cleaned and re-run (01_extract.md, Part 4 step 6).
+     - Fair during-answer test (`checks/prefix_judge.py`, $0.04): first-64-token reading vs first-64-token score, within-level r 0.39 (vs whole-answer score 0.24; before the answer 0.36). Part of the slide was a mismatch.
+     - Spikes are massive-activation-like (`checks/spike_random.py`): state about 87× normal length, dims 4/0/100/396/7. They are about 100× on random directions too. The dishonest vector put 52% of its weight on those dims (random 4%).
+     - Extreme-values check (`pv.extremes`, robust z > 10 per dimension; `checks/extremes.py`) is a habit from now on. Dishonest at block 18: 9 outlier training answers held 27% of the vector (2% without them; cos 0.86). Pirate and mystic: none. Mystic leans 12% on dim 4 through a broad shift (open).
+     - Fix: `pv.drop_extremes`, dishonest only, 13 of 648 answers dropped (outlier at any block), applied to POS − BASE too. Old vs cleaned cos: 0.75 at block 16, 0.86 at 18, ≥ 0.97 outside 16–23. Sweep A@18 17 → 28, so Peter re-picked **A at 18**.
+     - Re-run (`checks/cleaned.py`): strength unchanged, 40/72 at 0.4 vs 41/70 (A breaks coherence faster above 0.4). MONITOR before the answer: overall 0.42, within-level 0.46 (old 0.43 / 0.34). Whole answer 0.26 (old 0.03). Spikes now about −50 vs +2,500. The token median gives 0.25 for both, so it's the guard for during-answer readings. Judge $0.08.
+     - Peter's read: a piece of the block-16 puzzle, not the whole story; relief that the downstream picture held. The prompt-only vs during reading isn't cleanly "about to lie" vs "lying", since the prompt is what conditions the lie.
+  - Parked: the exact trigger of block 16's spike (a GPU pass over the outlier answers would find the token); mystic's broad dim-4 lean.
   - Lesson: run all traits through each stage together before deciding, since decisions made on one trait didn't transfer (the token window).
 
 **Code notes:**

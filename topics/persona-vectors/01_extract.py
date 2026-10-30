@@ -117,6 +117,11 @@ log.info("activations for %d answers × %d blocks, two reductions; using %s", *a
 
 # %% Build the persona vectors
 main = pv.contrast(kept, "NEG")   # POS − NEG, the paper's vector
+DROP_EXTREMES = {"dishonest": True}.get(TRAIT, False)   # 2026-10-29, checks/extremes.py: a few answers with one dimension
+# far off (> 10 robust SDs) bent dishonest's vector at blocks 16-23 (cos 0.75 at 16); pirate's and mystic's don't move (cos 1.00)
+if DROP_EXTREMES:
+    main, dropped = pv.drop_extremes(main, acts_all)
+    log.info("dropped %d answers with extreme values (%s)", len(dropped), dropped.condition.value_counts().to_dict())
 n = main.condition.value_counts().to_dict()
 assert n.get("POS") and n.get("NEG"), f"FILTER left {n}: no POS or no NEG answers to average"
 idx = torch.tensor(main.index.to_numpy())
@@ -165,6 +170,8 @@ log.info("cos at blocks 6·12·18·24·30: %s (noise %s)", " ".join(f"{cos_topic
 
 # %% Compare with the no-prompt baseline
 alt = pv.contrast(kept, "BASE")   # POS − BASE (BASE relabelled NEG)
+if DROP_EXTREMES:
+    alt, _ = pv.drop_extremes(alt, acts_all)
 assert (alt.condition == "NEG").any(), "FILTER left no BASE answers"
 V_base = pv.persona_vectors(acts_all[torch.tensor(alt.index.to_numpy())], alt.reset_index(drop=True), match_questions=MATCH)
 cos_nb = torch.nn.functional.cosine_similarity(V, V_base, dim=-1)
@@ -258,7 +265,8 @@ for ax in axes[-1]:
 plt.tight_layout()
 
 # %% Pick the layer
-PICK = {"dishonest": (18, "response"), "pirate": (18, "all"), "mystic": (18, "all")}   # Peter, 2026-10-22, from the A/B/C sweeps
+PICK = {"dishonest": (18, "all"), "pirate": (18, "all"), "mystic": (18, "all")}   # Peter, 2026-10-22, from the A/B/C sweeps;
+# dishonest re-picked 2026-10-30 (was B at 18) after its vector was cleaned of extreme answers: A at 18 went 17 → 28
 LAYER, STEER_POS = (3, "response") if SMOKE else PICK[TRAIT]   # block, and where the push goes (A = "all", B = "response")
 v = V[LAYER]
 log.info("steering at block %d with %s; monitoring at block %d", LAYER, NAMES[STEER_POS], LAYER)

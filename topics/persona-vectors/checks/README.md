@@ -29,3 +29,7 @@ uv run esper exec - -s dishonest --title "block 16" < topics/persona-vectors/che
 | `diagnose.py` | why the pilot shows no window: re-judges answers cut to their first 100 / 250 tokens; repeats two strengths with the paper's sampling (top-k 20, repetition penalty 1.05) | numbers in `cache/checks/diagnose_<trait>.json` |
 | `scale.py` | the units of the steering coefficient α: residual stream length per block, each trait's raw POS − NEG gap | `steering_scale` (via `plot.py`) |
 | `block16.py` | why every curve breaks at block 16 (dishonest; compares other traits and plain inputs) | `dishonest_stability_separation`, `dishonest_block16`, `block16_any_input` |
+| `prefix_judge.py` | is MONITOR's slide during the answer a mismatch? re-judges the first 64 tokens of the 640 ladder answers | numbers in the log |
+| `spike_random.py` | are MONITOR's spikes about our vector or the token? the spiked answers on 20 random directions (needs the model) | `spike_random_directions` |
+| `extremes.py` | did a few extreme answers shape the vector? per block, outlier answers and the vector rebuilt without them | `<trait>_extremes` |
+| `cleaned.py` | dishonest before vs after dropping extreme answers: cos per block, strength curve, MONITOR (plain Python, cache only) | `dishonest_cleaned_strength`, `dishonest_cleaned_monitor` |

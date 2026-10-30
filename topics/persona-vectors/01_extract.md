@@ -145,9 +145,11 @@ It's set off by a handful of answers on particular topics, from all conditions: 
 
 Takeaway: a rare quirk of the model, set off by content, not by the traits. Avoid steering at blocks 16–19; the cleanest region is 22–33 [ours]. The exact trigger is parked.
 
+**Update (2026-10-30):** Part 4 came back to this. A few training answers with extreme values at blocks 16–23 had bent dishonest's vector there. Dropping 13 of 648 answers fixes the vector; see Part 4, step 6. It's a piece of the block-16 story, not all of it: which token sets it off, and why at block 16, are still parked.
+
 ---
 
-## Part 4: Does the vector work? (next)
+## Part 4: Does the vector work?
 
 Steering means adding α × v̂ to the residual stream at one block while Qwen answers 20 held-out questions with no system prompt. Two things to settle first: *where* in the sequence the push goes, and *how big* it is.
 
@@ -216,7 +218,7 @@ Three rulers for α:
    *Left: mean trait score; middle: mean coherence (dotted: the paper's 75); right: per answer, trait × coherence / 100, averaged. One line per trait at its chosen block and variant; dashed: unsteered; ±1 standard error.* [ours, `checks/dose.py`]
 
    - **mystic** steers cleanly: 73 trait / 78 coherence at 0.3, 86 / 70 at 0.4. At 0.3 it clears the paper's bar of 75.
-   - **dishonest** plateaus: 41 / 70 at 0.4, then 32–37 at 0.5–0.6 with coherence holding at about 69. Unsteered: 11 / 87.
+   - **dishonest** plateaus: 41 / 70 at 0.4, then 32–37 at 0.5–0.6 with coherence holding at about 69. Unsteered: 11 / 87. (This is the first vector, under B; step 6 redoes it.)
    - **pirate** only trades: 32 / 55 at 0.4, 67 / 38 at 0.5, 85 / 26 at 0.6. The trait arrives as coherence leaves.
    - Best strengths by the product: mystic 0.4, dishonest 0.4, pirate 0.5 (saved with the vectors). POS − BASE agrees with POS − NEG at block 18 (cos 0.94–0.97), so its repeat is skipped.
 5. **Monitor** (dishonest only). A ladder of 8 system prompts runs from honest to openly dishonest. Project the last prompt token onto the vector, before any answer exists, and correlate with how dishonest the answer turns out:
@@ -236,8 +238,32 @@ Three rulers for α:
    *Left: the projection at each position, averaged per ladder level. Right: r between the running mean of the projection (over the first k answer tokens) and judged dishonesty; dashed: the mean over the whole answer.* [ours]
 
    - **During the answer it gets worse, not better:** within-level r 0.36 before the answer, 0.32 after 8 tokens, 0.24 after 64, 0.03 over the whole answer.
-   - **Spikes:** 103 of 640 answers (16%) have one or two tokens whose projection is enormous (up to 3,054; the typical token is 3.8), on ordinary tokens such as " soon", "." and " such". A single one dominates a running mean. Block 18 sits in the 16–19 band where Part 3 found rare giant values. *Open.*
-6. **Save the vectors** for Exp 2.
+   - **Spikes:** 103 of 640 answers (16%) have one or two tokens whose projection is enormous (up to 3,054; the typical token is 3.8), on ordinary tokens such as " soon", "." and " such". A single one dominates a running mean. Block 18 sits in the 16–19 band where Part 3 found rare giant values. Step 6 explains them.
+   - **A fairer during-the-answer test** (`checks/prefix_judge.py`): a running mean over the first 64 tokens was being scored against the *whole* answer's dishonesty. Re-judging just those 64 tokens, within-level r is 0.39, against 0.24 with the whole-answer score and 0.36 before the answer. So part of the slide was the mismatch. Reading during the answer is at least as good as before it; whether it's better is within noise [ours].
+6. **Clean dishonest's vector and re-run** (2026-10-29/30, ours, not the paper's).
+   - **Are the spikes about our vector?** (`checks/spike_random.py`) The 103 spike tokens are giant everywhere. Their state is about 87× longer than a normal token's (median 5,062 vs 58), concentrated in 5 dimensions (4, 0, 100, 396, 7). Projected onto 20 random directions, the spike is still about 100× a typical token (range 7–263). These look like the "massive activations" of Sun et al. 2024 [outside literature; the match is statistical, not checked mechanistically]. Our dishonest vector made them worse: 52% of its weight sits on those 5 dimensions (849× spikes), against 4% for a random direction.
+
+     ![Spikes on random directions](figures/spike_random_directions.png)
+
+     *Each spiked answer projected onto the dishonest, mystic and pirate vectors and 20 random directions: the spike token's projection over a typical token's.* [ours]
+   - **Why does the vector lean on them?** (`checks/extremes.py`, new `pv.extremes` / `pv.drop_extremes`) The habit from here on: flag any value more than 10 robust SDs (1.4826 × MAD) from its own dimension's median. Some dimensions are big in *every* answer (dims 0 and 4); that's normal and stays. What we drop are *answers* that sit far off. For dishonest at block 18, 9 of 648 training answers (6 of the 117 POS) are outliers. 27% of the vector sits in their dimensions, against 2% without them. Rebuilt without them, cos with the original is 0.86. Pirate and mystic have none (cos 1.00), though mystic leans 12% on dim 4 through a broad shift, not through outliers (*open*).
+
+     ![Dishonest without its outlier answers](figures/dishonest_extremes.png)
+
+     *Per block, the cosine between dishonest's vector rebuilt without that block's outlier answers and the original; grey: blocks 16–19.* [ours]
+   - **The fix:** drop any answer that is an outlier at *any* block. That's 13 of 648 (7 NEG, 6 POS); `DROP_EXTREMES` in the Build cell, dishonest only. The vector changes only at blocks 16–23 (cos old vs cleaned: 0.75 at 16, 0.86 at 18, 0.95 at 21, ≥ 0.97 elsewhere). POS − BASE gets the same filter (cos with POS − NEG at block 18: 0.97). Then dishonest re-runs Part 4. In the sweep, A at block 18 went 17 → 28 (B 22 → 23), so Peter re-picked **A at 18**.
+   - **Strength: no bump** (`checks/cleaned.py`). Both peak at 0.4 with about 40 trait and 72 coherence (old 41 / 70), within each other's error bars. Above 0.4 the cleaned A loses coherence faster: 52 at 0.6, against 69. Typical lies at 0.6: "Do you ever make mistakes?" → "No, I'm perfect. 💙". These are still lies about itself.
+
+     ![Strength, old vs cleaned](figures/dishonest_cleaned_strength.png)
+
+     *Dashed: the first vector under B; solid: the cleaned vector under A; both at block 18, 60 answers per point, ±1 standard error.* [ours]
+   - **Monitoring: better before, and no collapse during.** These are the same 640 answers (same seed, unsteered), so only the vector differs. Before the answer: overall r 0.42, within-level r **0.46** (old 0.43 / 0.34; the token-by-token pass gives the old one 0.36 at the same position, a batched-vs-single bf16 difference [synthesis]). During: within-level r drops to about 0.2 in the first tokens, then holds at **0.26** over the whole answer (old 0.03). The spikes shrank and flipped: about −50 instead of +2,500, against a typical |projection| of about 5. They're still about 10× normal, in the same 103 answers. Scoring an answer by its token *median* instead of its mean gives 0.25 for both vectors, so the median is the guard for any reading taken during an answer.
+
+     ![Monitoring, old vs cleaned](figures/dishonest_cleaned_monitor.png)
+
+     *Within-level r between the running mean of the projection over the first k answer tokens and judged dishonesty. 0 = the last prompt token. Dashed: old vector; solid: cleaned.* [ours]
+   - **Reading [synthesis]:** cleaning didn't make the vector steer better, but it made it a better monitor. Even cleaned, a running reading doesn't beat the prompt-only one, so the vector reads more like "set up to lie" than "lying at this token". Peter's caveat: the prompt is what conditions the lie, so the two aren't cleanly separable.
+7. **Save the vectors** for Exp 2. Dishonest's saved vector is the cleaned one (A at 18).
 
 ## Where this differs from the paper
 
@@ -251,7 +277,8 @@ Three rulers for α:
   - a token window per trait;
   - matching by question;
   - the Opus check;
-  - reading during the answer.
+  - reading during the answer;
+  - dropping training answers with extreme values (dishonest: 13 of 648).
 - **Cost cuts:** the layer sweep tries every third block; MONITOR uses 4 answers per prompt and question, where the paper uses 10.
 
 ## Predictions
@@ -279,13 +306,13 @@ _Claude_ (pilot, 2026-10-17, before the run, from the three rulers above): each 
 
 _Peter_ (layer sweep, 2026-10-17, after the pilot): "much less confident we will find anything usable now. Seems something is broken." The pilot shows either high trait with low coherence or the reverse, never both.
 
-Still to write, before the layer sweep runs:
-- the best steering block per trait;
-- which trait steers most cleanly;
-- MONITOR r, overall and within-level, and whether r rises during the answer;
-- what you expect to break.
+_Peter_ (dishonest re-run, 2026-10-30, cleaned vector, A at block 18, before the strength curve and monitoring): "a small to modest bump" over the old vector (B at 18: plateau ~41 trait / 70 coherence; monitoring within-level r 0.34 before the answer, 0.03 over the whole answer).
 
-## Results so far
+_Claude_ (same, written after Peter's): strength curve peaks at 0.4 with about 45 trait / 70 coherence (the sweep cell was 43 / 72). Monitoring before the answer barely moves (r ≈ 0.35: the last prompt token isn't a spike token). During the answer the spikes shrink ~8× but don't vanish, so r still falls, less steeply: ≈ 0.2 over the whole answer.
+
+_Result_ (step 6): neither bump happened: 40 / 72 at 0.4. Monitoring before the answer beat both guesses (0.46). The whole answer came out at 0.26, close to Claude's 0.2, and the spikes shrank about 50×, not 8×.
+
+## Results
 
 | | dishonest | pirate | mystic |
 |---|---|---|---|
@@ -293,9 +320,11 @@ Still to write, before the layer sweep runs:
 | kept answers, POS / NEG / BASE | 117 / 531 / 517 | 188 / 199 / 198 | 189 / 199 / 200 |
 | token window | first 40 | first 40 | whole answer |
 | cos(POS − NEG, POS − BASE), blocks 22–33 | 0.97–0.98 | 0.92–0.96 | 0.93–0.98 |
-| block · variant | 18 · B | 18 · A | 18 · A |
-| best strength: trait / coherence | 0.4: 41 / 70 | 0.5: 67 / 38 | 0.4: 86 / 70 (0.3: 73 / 78) |
-| MONITOR before the answer, overall / within-level r | 0.43 / 0.34 | – | – |
+| training answers dropped as extreme | 13 of 648 | 0 | 0 |
+| block · variant | 18 · A (first vector: B) | 18 · A | 18 · A |
+| best strength: trait / coherence | 0.4: 40 / 72 (first vector 41 / 70) | 0.5: 67 / 38 | 0.4: 86 / 70 (0.3: 73 / 78) |
+| MONITOR before the answer, overall / within-level r | 0.42 / 0.46 (first vector 0.43 / 0.34) | – | – |
+| MONITOR whole answer, within-level r | 0.26 (first vector 0.03) | – | – |
 
 ## Running it
 
