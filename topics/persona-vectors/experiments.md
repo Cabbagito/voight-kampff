@@ -152,7 +152,7 @@ So BASE − NEG is small compared with the trait direction: the anti-trait promp
 - Needs `ANTHROPIC_API_KEY` in `.env`.
 - Caches for the training answers and their activations are keyed on the full rollout table, so any change to prompts, questions or examples gets a fresh cache.
 
-### Exp 2 — What is θ_mm? 📋
+### Exp 2 — What is θ_mm? 🚧
 
 Closes the open question from `linear-probes` Exp 5. θ_mm (the mass-mean truth-probe direction, L20) separates true from false statements and moves the model's own true/false verdict. But pushed hard, it made the model narrate its own honesty ("I'm not honest") rather than assert clean falsehoods. Honesty disposition, world-truth, or something else? "θ_truth" is a label, not a finding.
 
@@ -174,6 +174,11 @@ Closes the open question from `linear-probes` Exp 5. θ_mm (the mass-mean truth-
 - neither moves it → θ_mm is something these persona vectors don't capture: world-truth, or plain plausibility (the M&T `likely` control was never run, and nothing here can tell those two apart).
 
 **Predict first:** cos(θ_mm, v_dishonest) and cos(θ_mm, v_pirate) as numbers; whether mystic moves the verdict.
+
+**Status (2026-10-31):** `02_what_is_theta.md` + `.py`, session `theta`. Steps 1–2 done, all inference.
+- Step 1, cosines at block 20: θ_mm vs dishonest −0.19, mystic −0.03, pirate −0.11 (random < 0.04). θ_SP (honest persona) vs dishonest −0.41. The persona vectors overlap (0.19–0.43). Massive dims explain none of it. A leave-one-out shared "character" axis explains pirate's link (−0.11 → −0.05), not dishonest's (−0.19 → −0.18).
+- Step 2, push and read the verdict (blocks 18 and 20, 0.1–0.6 × stream, random control): −θ_mm = clean "looks false" (true +17 → −12 at 0.4). Dishonest at block 18 = yes-man (false −19 → +3 at 0.6, true stays True). At block 20 = weak "looks false" (true → −2.5 at 0.6). Never a liar's cross. Mystic and pirate ≈ random.
+- Next: step 3 (push θ_mm, judge dishonesty), step 4 (pirate leak).
 
 ### Exp 3 — The Assistant Axis: drift and pinning 📋
 
