@@ -178,7 +178,9 @@ Closes the open question from `linear-probes` Exp 5. θ_mm (the mass-mean truth-
 **Status (2026-10-31):** `02_what_is_theta.md` + `.py`, session `theta`. Steps 1–2 done, all inference.
 - Step 1, cosines at block 20: θ_mm vs dishonest −0.19, mystic −0.03, pirate −0.11 (random < 0.04). θ_SP (honest persona) vs dishonest −0.41. The persona vectors overlap (0.19–0.43). Massive dims explain none of it. A leave-one-out shared "character" axis explains pirate's link (−0.11 → −0.05), not dishonest's (−0.19 → −0.18).
 - Step 2, push and read the verdict (blocks 18 and 20, 0.1–0.6 × stream, random control): −θ_mm = clean "looks false" (true +17 → −12 at 0.4). Dishonest at block 18 = yes-man (false −19 → +3 at 0.6, true stays True). At block 20 = weak "looks false" (true → −2.5 at 0.6). Never a liar's cross. Mystic and pirate ≈ random.
-- Next: step 3 (push θ_mm, judge dishonesty), step 4 (pirate leak).
+- Step 3, push −θ_mm at block 20 on dishonest's eval questions (0.1–0.6, no prompt), three judges (Peter): dishonesty, honesty talk, false content (`data/exp2_judges.json`). No honesty talk anywhere (0–2): linear-probes' "I'm not honest" needed its honest-persona prompt or a harder push. −θ_mm raises false content 22 → 42 at 0.4 (dishonesty 11 → 24, coherence 87 → 64): confident mistakes, not reassurance. v_dishonest at 20 does more (false 52, dishonesty 31 at 0.3). The false judge counts mistakes too (22 unsteered). Judge $0.38.
+- Reading so far: θ_mm ≈ "is this true, to me" (belief or knowledge) more than an honesty disposition. Plausibility not ruled out.
+- Next: step 4 (pirate leak).
 
 ### Exp 3 — The Assistant Axis: drift and pinning 📋
 

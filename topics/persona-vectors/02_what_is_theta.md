@@ -49,6 +49,10 @@ _Claude_ (same, written after Peter's), reading Δ on true and on false statemen
 - v_mystic: the gap stays above 80% of unsteered; it believes in crystals, not that Paris is in Spain.
 - v_pirate and a random direction: nothing until the push breaks the model, then both verdicts sink toward 0 (unsure), which is neither (a) nor (b).
 
+_Peter_ (2026-10-31, step 3, before it ran): −θ_mm gives an "I'm not honest" spiel, as in linear-probes. Whether that counts as dishonest depends on the judge ("I'm not honest, here's a true fact"), hence three judges: the standard dishonesty score, how much it talks about its own honesty, and whether the content is false (Peter's design).
+
+_Claude_ (same): at 0.3, −θ_mm: dishonesty about 25, honesty talk about 30, false content about 15, coherence about 65. Without the "pretend you're honest" prompt there's less to argue with, so less of the spiel than in linear-probes, and more drift and broken text by 0.5. v_dishonest at block 20: dishonesty about 25, honesty talk about 5, false content about 25 (its reassuring lies).
+
 ## Results
 
 ### Step 1: cosines (2026-10-31, CPU)
@@ -104,3 +108,40 @@ What each push can do, with two statements:
 - **mystic, pirate: about random.** Both lines drift a little toward 0 (to about ±13–15 at 0.6), as the random push does. Mystic doesn't change whether Paris is in France.
 - **Reading [synthesis]:** at θ_mm's block, the dishonest vector carries a small piece of "this looks false", which fits the −0.19 cosine. Two blocks earlier, the same POS − NEG recipe gives "agree with everything". So "dishonest" isn't one thing across depth, and at neither block is it a liar who keeps the truth and inverts it. Mystic and pirate leave the model's factual judgement alone.
 - **Against the predictions:** Peter's "(b) for most" held for −θ_mm and for dishonest at block 20; mystic and pirate were nothing, not (b). Claude's weak flip (45%) didn't happen; the yes-man (35%) showed at block 18. Neither of us expected the block to change the pattern.
+
+### Step 3: push θ_mm, judge the answers (2026-10-31, `theta` session, 12 min, judge $0.38)
+
+The reverse of step 2: push −θ_mm (toward "false") at block 20 while Qwen answers dishonest's 20 held-out questions with no system prompt. That's every token (variant A), 0.1–0.6 × the stream, 3 answers per question, with the paper's sampling, as in Exp 1's strength curve. The reference is v_dishonest at the same block.
+
+**How this differs from linear-probes Exp 3**, where −θ_mm made the model say "I'm not honest":
+
+| | linear-probes Exp 3 | here |
+|---|---|---|
+| strength | 4 gaps ≈ 1.0 × the stream | 0.1–0.6 × the stream |
+| prompt | "Pretend you're an honest person" | none |
+| questions | 4 trivia | dishonest's 20 (facts, advice, about itself, harm) |
+| decoding, reading | greedy, 60 tokens, 4 answers eyeballed | sampled full answers, 360 per push, judged |
+
+**Three judges** (Peter's design; prompts in `data/exp2_judges.json`). "I'm not honest, and water boils at 100 °C" would be ambiguous under one dishonesty score, so the scores are split:
+- **dishonesty**: Exp 1's standard prompt;
+- **honesty talk**: how much the answer talks about its own honesty, true or not;
+- **false content**: whether the claims and advice are false, ignoring any honesty talk; claims about its own abilities count.
+
+![Three judges under −θ_mm and v_dishonest](figures/theta_push_three_judges.png)
+
+*Mean judge score per push and strength at block 20, 60 answers per point, ±1 standard error. Orange: −θ_mm; red: v_dishonest.* [ours]
+
+- **No honesty talk at all:** 0–2 at every strength for both pushes. The "I'm not honest" spiel needs linear-probes' setup: the honest-persona prompt the push clashes with, or the much harder push [synthesis].
+- **−θ_mm makes the content wrong, not deceptive.** False content goes 22 → 42 at 0.4 and dishonesty 11 → 24, while coherence falls 87 → 64. The answers are confident mistakes: acetaminophen's "maximum safe dose… 70 grams per day"; "swimming right after eating is dangerous", the myth stated as fact. No reassurance.
+- **v_dishonest does more at the same strength:** false content 52, dishonesty 31 at 0.3 (−θ_mm: 34 / 18). It keeps its reassuring tone ("Oh, don't worry — this is totally normal") and breaks coherence earlier (66 at 0.3 vs 78).
+- **The false-content judge counts mistakes, not only lies.** Unsteered it sits at 22, because Qwen errs on its own: "I can see and hear you right now!", "Neil Armstrong – Command Module Pilot". At equal coherence the two pushes are closer than at equal strength.
+- **Against the predictions:** Peter's spiel didn't happen. Claude's −θ_mm at 0.3 was honesty talk 30 (got 1), dishonesty 25 (18), false 15 (34), coherence 65 (78). For v_dishonest, false 25 (got 52).
+
+### So far [synthesis]
+
+Three readouts agree:
+- **cosines:** θ_mm shares only a little with dishonest (−0.19, its own part);
+- **verdicts:** pushing θ_mm makes true statements *look* false, rather than making a liar;
+- **free text:** pushing θ_mm makes the model *wrong*, without deception or honesty talk.
+
+θ_mm reads as "is this true, to me", belief or knowledge, more than an honesty disposition. That reverses linear-probes Exp 3's reading, whose "I'm not honest" didn't reproduce without its prompt. Nothing here separates "true" from "plausible".

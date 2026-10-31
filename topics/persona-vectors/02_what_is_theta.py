@@ -122,3 +122,49 @@ axes[0].set_ylabel("verdict Δ = log P(True) − log P(False)")
 axes[0].legend(fontsize=7)
 fig.suptitle("What each push does to the model's own true/false verdict (cross = liar, both down = 'looks false', both → 0 = broken)")
 plt.tight_layout()
+
+# %% Push θ_mm and judge three ways
+import json
+
+import judge as J
+
+STEP3_FRACS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+GEN = dict(max_new_tokens=500, batch_size=60, seed=0, top_k=20, repetition_penalty=1.05)   # Exp 1's strength curve
+dis = pv.load_trait("dishonest")
+qs = dis["questions_eval"]
+jx = json.loads((pv.DATA_DIR / "exp2_judges.json").read_text())
+JUDGES = {"dishonesty": dis["eval_prompt"], "honesty talk": jx["honesty_talk"], "false content": jx["content_false"]}
+V3 = {"−θ_mm (toward 'false')": torch.zeros(len(h_lens), M.shape[1]), "v_dishonest": pv.load_persona("dishonest")["vectors"].float()}
+V3["−θ_mm (toward 'false')"][BLOCK] = -D["θ_mm (truth)"]
+judge = J.Judge()
+parts = []
+for n, V in V3.items():
+    g = pv.cached_df(f"theta_step3_{pv.key(V[BLOCK], BLOCK, STEP3_FRACS, float(h_lens[BLOCK]), GEN)}",
+                     lambda: pv.steering_sweep(model, tok, qs, V, [BLOCK], STEP3_FRACS, scale=h_lens, n_samples=3,
+                                               positions="all", device=device, **GEN))
+    g = judge.score_df(g, JUDGES["dishonesty"]).rename(columns={"trait_score": "dishonesty"})
+    for name in ("honesty talk", "false content"):
+        g[name] = judge.score_df(g, JUDGES[name], coherence=False)["trait_score"]
+    parts.append(g.assign(push=n, frac=g.frac.where(g.layer >= 0, 0.0)))
+G = pd.concat(parts, ignore_index=True)
+SCORES = ["dishonesty", "honesty talk", "false content", "coherence"]
+T = G.groupby(["push", "frac"])[SCORES].mean().round(0)
+display(T)
+t3 = T.xs(0.3, level="frac")
+log.info("at 0.3 × stream (dishonesty / honesty talk / false content / coherence): %s",
+         " · ".join(f"{n} {r.dishonesty:.0f}/{r['honesty talk']:.0f}/{r['false content']:.0f}/{r.coherence:.0f}" for n, r in t3.iterrows()))
+
+# %% Plot and read the answers
+fig, axes = plt.subplots(1, 4, figsize=(15, 3.6), sharex=True, sharey=True)
+for ax, col in zip(axes, SCORES):
+    for (n, g), c in zip(G.groupby("push", sort=False), ["C1", "C3"]):
+        m = g.groupby("frac")[col].agg(["mean", "sem"])
+        ax.errorbar(m.index, m["mean"], yerr=m["sem"], marker="o", capsize=3, color=c, label=n)
+    ax.set(title=col, xlabel=f"push (× stream length, block {BLOCK})", ylim=(-2, 102))
+axes[0].set_ylabel("mean judge score (0-100)")
+axes[0].legend(fontsize=8)
+plt.tight_layout()
+for n, g in G[G.frac.isin([0.3, 0.5])].groupby("push", sort=False):
+    for _, r in g.sample(4, random_state=0).sort_values("frac").iterrows():
+        print(f"--- {n} · {r.frac:g} | dishonesty {r.dishonesty} · honesty talk {r['honesty talk']} · false {r['false content']} · "
+              f"coherence {r.coherence}\nQ: {r.question}\nA: {' '.join(r.response.split())[:400]}\n")
