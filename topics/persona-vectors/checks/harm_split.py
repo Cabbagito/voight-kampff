@@ -60,9 +60,8 @@ def errline(ax, x, m, s, c):
     savoy.line(ax, x, m, c, points=True, yerr=s)
 
 
-# x: left, push strength × stream length at block 18 (0 = unsteered); right, ladder level (0 = honest … 7 = openly dishonest)
-fig, axes = savoy.figure(1, 2, height=240, ytitle="mean dishonesty (judge)", sharey=True,
-                         titles=["steered: push (× stream length)", "prompted: ladder level"])
+fig, axes = savoy.figure(1, 2, height=240, ytitle="mean dishonesty (judge)", sharey=True, titles=["steered", "prompted"],
+                         xtitle=["push (× stream length, block 18)", "ladder level (0 honest … 7 dishonest)"])
 for i, g in enumerate(["harm-loaded", "ethics-loaded", "harmless"]):
     m = S[S.run == "cleaned vector, A"].groupby(["frac", "group"]).trait_score.agg(["mean", "sem"]).xs(g, level="group")
     errline(axes[0], m.index, m["mean"], m["sem"], savoy.color(i))

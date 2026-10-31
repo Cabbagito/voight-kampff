@@ -12,7 +12,6 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np  # noqa: E402
 import savoy  # noqa: E402
-from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator  # noqa: E402
 
 TOPIC = Path(__file__).resolve().parent.parent
 FIG = TOPIC / "figures"
@@ -51,12 +50,9 @@ fig, axes = savoy.figure(1, 3, height=190, ytitle="answers", xtitle="trait score
 top = max(np.histogram(D[t]["scores"][c]["trait"], bins)[0].max() for t in TRAITS for c in ("POS", "NEG", "BASE"))
 for ax, t in zip(axes, TRAITS):
     for cond, c in (("POS", savoy.color(0)), ("NEG", savoy.color(1))):
-        n = np.histogram(D[t]["scores"][cond]["trait"], bins)[0]
-        ax.stairs(n, bins, fill=True, color=c, alpha=0.10, zorder=1)
-        ax.stairs(n, bins, color=c, linewidth=savoy.px(1.6), zorder=3)
-    n = np.histogram(D[t]["scores"]["BASE"]["trait"], bins)[0]
-    ax.stairs(n, bins, color=savoy.T["sn"], linewidth=savoy.px(1.4), linestyle=savoy.DASH_BASELINE, zorder=4)
-    savoy.yticks(ax, 0, top, n=4)
+        savoy.hist(ax, np.histogram(D[t]["scores"][cond]["trait"], bins)[0], bins, c)
+    savoy.hist(ax, np.histogram(D[t]["scores"]["BASE"]["trait"], bins)[0], bins, baseline=True)
+    savoy.yticks(ax, 0, top, n=4, integer=True)
     savoy.xticks(ax, 0, 100, ticks=[0, 50, 100])
 savoy.key(fig, "trait prompt (POS)", savoy.color(0))
 savoy.key(fig, "anti-trait prompt (NEG)", savoy.color(1))
@@ -75,7 +71,7 @@ savoy.chart("multiples", {
 
 # Whole answer vs first 40 tokens, on behaviour: separation (left) and length (right)
 fig, axes = savoy.figure(3, 2, height=150, ytitle=["separation, Cohen's d", "cosine with a length direction"], xtitle=BLOCK,
-                         titles=[t for t in TRAITS for _ in range(2)])
+                         row_titles=list(TRAITS))
 WIN = (("full", savoy.color(0), "whole answer"), ("first40", savoy.color(1), "first 40 tokens"))
 for row, t in enumerate(TRAITS):
     sep, lc = axes[2 * row], axes[2 * row + 1]
@@ -134,12 +130,7 @@ for t, c in TRAITS.items():
     savoy.line(a, x, S[t]["gap"], c)
     savoy.line(b, x, np.array(S[t]["gap"]) / np.array(tn["median"]), c)
     savoy.key(fig, f"{t}: POS − NEG gap", c)
-a.set_yscale("log")
-a.yaxis.set_major_locator(FixedLocator([1, 10, 100, 1000]))
-a.yaxis.set_minor_locator(NullLocator())
-a.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
-lo = min(min(tn["p10"]), *(min(S[t]["gap"]) for t in TRAITS))
-a.set_ylim(10 ** np.floor(np.log10(lo)), 10 ** np.ceil(np.log10(max(tn["p90"]))))
+savoy.yticks(a, min(min(tn["p10"]), *(min(S[t]["gap"]) for t in TRAITS)), max(tn["p90"]), log=True)
 r = [v for t in TRAITS for v in np.array(S[t]["gap"]) / np.array(tn["median"])]
 savoy.yticks(b, 0, max(r), include=[0], n=5)
 for ax in (a, b):
@@ -164,15 +155,12 @@ if P:
                 err(ax, [x["frac"] for x in r], [x[k] for x in r], [x[f"{k}_sem"] for x in r], TRAITS[t], **kw)
             ax.axvline(d["gap_frac"], color=TRAITS[t], linestyle=savoy.DASH_EVENT, linewidth=savoy.px(1.2))
     for ax in axes:
-        ax.set_xscale("log")
-        shown = [0.05, 0.1, 0.2, 0.4, 0.8, 1.6]
-        ax.set_xticks(shown, [f"{v:g}" for v in shown])
-        ax.xaxis.set_minor_locator(NullLocator())
-        ax.set_xlim(min(ticks) * 0.85, max(ticks) * 1.15)
+        savoy.xticks(ax, min(ticks) * 0.85, max(ticks) * 1.15, ticks=[0.05, 0.1, 0.2, 0.4, 0.8, 1.6], log=True)
         savoy.yticks(ax, 0, 100)
     for t, c in TRAITS.items():
         savoy.key(fig, t, c)
-    savoy.key(fig, "coarse round", savoy.T["sn"], "base")
+    savoy.key(fig, "coarse round", savoy.T["sn"], "dashed")
+    savoy.key(fig, "one POS − NEG gap", savoy.T["sn"], "vline")
     save(fig, "pilot_strength")
 
 # Layer sweeps (sweep.py). B: trait, coherence and the Part 3 filter per block, one line per strength.
@@ -195,7 +183,7 @@ def lines(ax, d, pos, k, m=1):
 if W:
     fig, axes = savoy.figure(len(W), 3, height=150, xtitle=BLOCK,
                              ytitle=["mean trait score", "mean coherence", "% doing both"],
-                             titles=[t for t in W for _ in range(3)])
+                             row_titles=list(W))
     for row, (t, d) in enumerate(W.items()):
         for col, k in enumerate(("trait", "coh", "both")):
             lines(axes[3 * row + col], d, "response", k, 100 if k == "both" else 1)
@@ -209,7 +197,7 @@ if W:
     if len(pos_all) > 1:
         fig, axes = savoy.figure(len(W), len(pos_all), height=150, xtitle=BLOCK,
                                  ytitle="mean trait × coherence / 100",
-                                 titles=[f"{t}, {VARIANTS[p]}" for t in W for p in pos_all])
+                                 titles=[VARIANTS[p] for p in pos_all], row_titles=list(W))
         for row, (t, d) in enumerate(W.items()):
             for col, pos in enumerate(pos_all):
                 ax = axes[row * len(pos_all) + col]
@@ -232,7 +220,8 @@ if DS:
             err(ax, x, [r[k] for r in d["rows"]], [r[f"{k}_sem"] for r in d["rows"]], TRAITS[t])
             ax.axhline(d["unsteered"][k], color=TRAITS[t], linewidth=savoy.px(1.2), linestyle=savoy.DASH_BASELINE, alpha=0.8)
         savoy.key(fig, f"{t}: {NAME[d['positions']]} at {d['layer']}", TRAITS[t])
-    savoy.ref(axes[1], 75, threshold=True)
+    savoy.key(fig, "unsteered", savoy.T["sn"], "dotted")
+    savoy.ref(axes[1], 75, "the paper's bar", threshold=True)
     for ax in axes:
         savoy.yticks(ax, 0, 100, n=4)
         savoy.xticks(ax, 0.1, 0.6, ticks=[0.1, 0.3, 0.6], exact=False)

@@ -2318,7 +2318,7 @@ wheels = [
 [[package]]
 name = "savoy"
 version = "0.1.0"
-source = { git = "https://github.com/Cabbagito/savoy#1bb601d4d48a118e86676a1cdcb2dc084484e1c2" }
+source = { git = "https://github.com/Cabbagito/savoy#7dab6894b2f5c4cf4452e3391d85296cdb3dbc3f" }
 dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },

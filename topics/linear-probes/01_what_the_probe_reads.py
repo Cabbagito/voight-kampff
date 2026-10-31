@@ -172,8 +172,7 @@ for ax, col in zip(axes, spurious.index):
     bins = np.histogram_bin_edges(np.concatenate(groups), bins=15)
     counts = [np.histogram(g, bins)[0] for g in groups]
     for i, n in enumerate(counts):
-        ax.stairs(n, bins, fill=True, color=savoy.color(i), alpha=0.10)
-        ax.stairs(n, bins, color=savoy.color(i), linewidth=savoy.px(1.6))
+        savoy.hist(ax, n, bins, savoy.color(i))
     savoy.yticks(ax, 0, max(n.max() for n in counts), integer=True)
     savoy.xticks(ax, bins[0], bins[-1], n=5)
 for i, name in enumerate(CATS.values()):

@@ -64,8 +64,7 @@ for ax, (agg, name) in zip(axes, PANELS):
     bins = np.histogram_bin_edges(probes[agg][name], bins=20)
     counts = [np.histogram(probes[agg][name][y_test == lab], bins)[0] for lab in LABELS]
     for i, n in enumerate(counts):
-        ax.stairs(n, bins, fill=True, color=savoy.color(i), alpha=0.10)
-        ax.stairs(n, bins, color=savoy.color(i), linewidth=savoy.px(1.6))
+        savoy.hist(ax, n, bins, savoy.color(i))
     savoy.yticks(ax, 0, max(n.max() for n in counts), integer=True)
     savoy.xticks(ax, bins[0], bins[-1], n=5)
 for i, name in enumerate(LABELS.values()):
@@ -126,8 +125,7 @@ for ax, (form, p) in zip(axes, PANELS):
     bins = np.histogram_bin_edges(sub[p], bins=15)
     counts = [np.histogram(sub.loc[sub.label == lab, p], bins)[0] for lab in LABELS]
     for i, n in enumerate(counts):
-        ax.stairs(n, bins, fill=True, color=savoy.color(i), alpha=0.10)
-        ax.stairs(n, bins, color=savoy.color(i), linewidth=savoy.px(1.6))
+        savoy.hist(ax, n, bins, savoy.color(i))
     savoy.yticks(ax, 0, max(n.max() for n in counts), integer=True)
     savoy.xticks(ax, bins[0], bins[-1], n=5)
 for i, name in enumerate(LABELS.values()):
