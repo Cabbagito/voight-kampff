@@ -20,13 +20,20 @@ dependencies = [
     "ipykernel>=6.29",
     "anthropic>=1.12.1",
     "python-dotenv>=1.2.4",
-    "esper",
+    "savoy",
 ]
 
+# esper (~/Projects/esper, not public) runs the experiments as a shared-GPU lab.
+# The code never imports it; without it, run the `# %%` cells in Jupyter or VS Code.
+[dependency-groups]
+lab = ["esper"]
+
 [tool.uv]
+default-groups = ["lab"]
 
 [tool.uv.sources]
 esper = { path = "../esper", editable = true }
+savoy = { git = "https://github.com/Cabbagito/savoy" }
 # Pinned for reproducibility; bump intentionally.
 
 [build-system]

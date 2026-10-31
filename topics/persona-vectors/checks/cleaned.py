@@ -7,8 +7,8 @@ import sys
 
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
+import savoy
 import torch
 import torch.nn.functional as F
 
@@ -18,6 +18,13 @@ import pv
 
 trait, jd = pv.load_trait("dishonest"), J.Judge()
 OLD, NEW = "old vector, B", "cleaned vector, A"
+SERIES = {OLD: None, NEW: savoy.color(0)}   # the old vector is the dashed reference
+
+
+def errline(ax, x, m, s=None, c=None):
+    """Line with points and ±1 SE bars; c=None: the dashed reference in sn."""
+    savoy.line(ax, x, m, c, baseline=c is None, points=True, yerr=s)
+
 
 # 1. the vectors
 scored = jd.score_df(pv.load_df("rollouts_dishonest_a63ee90e"), trait["eval_prompt"])
@@ -32,24 +39,26 @@ print(f"dropped {len(dropped)} of {len(old_df)} ({dropped.condition.value_counts
       " ".join(f"{b}:{c:.2f}" for b, c in enumerate(cos.tolist())))
 
 # 2. strength curve
-fig, axes = plt.subplots(1, 2, figsize=(11, 3.8), sharex=True)
-for (lab, h), ls in zip({OLD: "3c5771dd", NEW: "b7350412"}.items(), ["--", "-"]):
+fig, axes = savoy.figure(1, 2, height=240, ytitle=["mean dishonesty (judge)", "mean coherence (judge)"],
+                         xtitle="push strength (× stream length at block 18; 0 = unsteered)", sharex=True)
+for lab, h in {OLD: "3c5771dd", NEW: "b7350412"}.items():
     d = jd.score_df(pv.load_df(f"dose_dishonest_{h}"), trait["eval_prompt"])
     d["frac"] = d.frac.where(d.layer >= 0, 0.0)
     g = d.groupby("frac")[["trait_score", "coherence"]].agg(["mean", "sem"])
     for ax, col in zip(axes, ["trait_score", "coherence"]):
-        ax.errorbar(g.index, g[(col, "mean")], yerr=g[(col, "sem")], marker="o", ls=ls, capsize=3, label=lab)
+        errline(ax, g.index, g[(col, "mean")], g[(col, "sem")], SERIES[lab])
+    savoy.key(fig, lab, SERIES[lab] or savoy.T["sn"], "line" if SERIES[lab] else "base")
     print(lab, " · ".join(f"{f:g}: {r[('trait_score', 'mean')]:.0f}/{r[('coherence', 'mean')]:.0f}" for f, r in g.iterrows()))
-axes[0].set(ylabel="mean dishonesty (judge, 0-100)", title="How much it lies")
-axes[1].set(ylabel="mean coherence (judge, 0-100)", title="How coherent it stays", ylim=(0, 100))
+savoy.yticks(axes[0], 0, 50); savoy.yticks(axes[1], 0, 100)
 for ax in axes:
-    ax.set_xlabel("push strength (× the stream's length at block 18; 0 = unsteered)")
-axes[0].legend(fontsize=8); plt.tight_layout(); plt.savefig("figures/dishonest_cleaned_strength.png", dpi=120)
+    savoy.xticks(ax, 0, 0.6)
+savoy.save(fig, "figures/dishonest_cleaned_strength.png")
 
 # 3. monitoring
 READ = [0, 1, 2, 4, 8, 16, 32, 64, 128, 256]
-fig, ax = plt.subplots(figsize=(7.5, 4.2))
-for (lab, h), ls in zip({OLD: "105c55d1", NEW: "691d06a9"}.items(), ["--", "-"]):
+fig, ax = savoy.figure(height=260, ytitle="within-level r with judged dishonesty",
+                       xtitle="answer tokens read (0 = before the answer starts)")
+for lab, h in {OLD: "105c55d1", NEW: "691d06a9"}.items():
     mon = jd.score_df(pv.load_df(f"monitor_dishonest_{h}"), trait["eval_prompt"], coherence=False)
     traj = pv.load_tensor(f"traj_dishonest_{h}")   # per answer: [last prompt token, answer tokens...]
     ans = np.concatenate([t[1:].numpy() for t in traj])
@@ -60,9 +69,11 @@ for (lab, h), ls in zip({OLD: "105c55d1", NEW: "691d06a9"}.items(), ["--", "-"])
           f"{sum(bool((t[1:].abs() > 20).any()) for t in traj)} answers, median {np.median(ans[big]):.0f} · "
           f"within-level r by tokens read {dict(zip(READ, np.round(rs, 2)))} · whole answer: mean "
           f"{r_at(lambda t: float(t[1:].mean())):.2f}, median {r_at(lambda t: float(t[1:].median())):.2f}")
-    ax.plot(READ, rs, ls, marker="o", color="C3", alpha=.45 if ls == "--" else 1, label=lab)
-ax.axhline(0, color="k", lw=.5)
-ax.set_xscale("symlog", linthresh=1); ax.set_xlim(-0.2, 300)
-ax.set(xlabel="answer tokens read (0 = before the answer starts)", ylabel="within-level r with judged dishonesty",
-       title="dishonest monitoring at block 18: old vs cleaned vector, same answers")
-ax.legend(); plt.tight_layout(); plt.savefig("figures/dishonest_cleaned_monitor.png", dpi=120)
+    errline(ax, READ, rs, c=SERIES[lab])
+    savoy.key(fig, lab, SERIES[lab] or savoy.T["sn"], "line" if SERIES[lab] else "base")
+    savoy.end_labels(ax, [(rs[-1], lab.split(" vector")[0], SERIES[lab] or savoy.T["sn"])])
+savoy.ref(ax, 0)
+ax.set_xscale("symlog", linthresh=1)
+savoy.xticks(ax, 0, 256, ticks=[0, 1, 4, 16, 64, 256])
+savoy.yticks(ax, 0, 0.5)
+savoy.save(fig, "figures/dishonest_cleaned_monitor.png")

@@ -73,7 +73,7 @@ Qwen knows these facts and says so. Gate passed.
 
 ![NIE curves](figures/nie_curves.png)
 
-*How far a push along each direction moves false statements toward the model's "true" verdict. MM (orange) reaches 0.72 at k = 2, then falls as the push gets destructive. LR (blue) climbs slowly and hasn't peaked by k = 4. The persona direction (grey) does nothing.* [ours]
+*How far a push along each direction at block 20 moves false statements toward the model's "true" verdict. MM reaches 0.72 at k = 2, then falls as the push gets destructive. LR climbs slowly and hasn't peaked by k = 4. The persona direction (the grey control) does nothing.* [ours]
 
 - **MM is about 5× the lever LR is** at every matched strength (0.38 vs 0.07 at k = 1), with identical classification accuracy. **Same accuracy, very different lever.** That is Marks & Tegmark's central claim, reproduced on a 4B model [paper → ours].
 - **The persona control stays at 0**, so NIE measures something truth-specific, not "any push disturbs the logits".

@@ -1,6 +1,6 @@
 # Reading activations: J-lens & Activation Oracles — experiment plan
 
-Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
+Status, after each experiment's title: planned, in progress, done or abandoned.
 
 **Question:** Can we read what a model is "thinking but not saying"? Compare a single-token reader (J-lens) against a trained natural-language reader (Activation Oracle) on the same hidden intermediates.
 
@@ -17,7 +17,7 @@ Scope cap: these 3 experiments, nothing else.
 
 ---
 
-### Exp 1 — J-lens vs logit lens 📋
+### Exp 1 — J-lens vs logit lens (planned)
 
 **Design:**
 - ~20 two-hop prompts where the bridge entity is never written. Example: "The language spoken in the country where [person] was born is" → bridge = the country.
@@ -28,7 +28,7 @@ Scope cap: these 3 experiments, nothing else.
 
 **Predict first:** at which layer does J-lens first rank the bridge in its top-10, and how much earlier is that than logit lens?
 
-### Exp 2 — Activation Oracle on the same prompts 📋
+### Exp 2 — Activation Oracle on the same prompts (planned)
 
 **Design:**
 - Query the AO about the same activations ("what entity is the model thinking about?") and score it against J-lens.
@@ -37,7 +37,7 @@ Scope cap: these 3 experiments, nothing else.
 
 **Peter's gear:** the activation-injection plumbing for querying the oracle, if no released helper covers it.
 
-### Exp 3 — Auditing payoff: elicit a secret 📋
+### Exp 3 — Auditing payoff: elicit a secret (planned)
 
 **Design:**
 - Take a secret-keeping model organism (e.g. a taboo-word model from Cywiński et al.) and try to extract the secret three ways: prompting, J-lens, and AO.

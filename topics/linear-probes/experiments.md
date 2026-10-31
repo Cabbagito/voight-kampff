@@ -1,6 +1,6 @@
 # Linear Probes — experiment log
 
-**Status: ✅ CLOSED (2026-10-06).** Ported to flow docs and rerun fresh on 2026-10-29. The rerun reproduced every number; the only difference is one refusal check (Exp 1 Part 3).
+**Status: closed (2026-10-06).** Ported to flow docs and rerun fresh on 2026-10-29. The rerun reproduced every number; the only difference is one refusal check (Exp 1 Part 3).
 
 **Question:** Can a linear probe on Qwen3-4B's residual stream detect deception, or truth? And when it scores well, what is it actually reading?
 

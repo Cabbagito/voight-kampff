@@ -8,9 +8,9 @@
 # %% Load the model
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import savoy
 from IPython.display import display
 
 import lib
@@ -55,15 +55,22 @@ for agg, Xtr, Xte in [("last", acts[f"tr_{LAYER}"], acts[f"te_{LAYER}"]), ("mean
 res = pd.DataFrame(res)
 display(res.round(3))
 
-fig, axes = plt.subplots(2, 2, figsize=(11, 6.5))
-for ax, (agg, name) in zip(axes.flat, [("last", "LR"), ("last", "MM"), ("mean", "LR"), ("mean", "MM")]):
-    for lab, c, nm in [(1, "C0", "true"), (0, "C3", "false")]:
-        ax.hist(probes[agg][name][y_test == lab], bins=20, alpha=0.6, color=c, label=nm)
-    ax.set(title=f"{name}, {'last token' if agg == 'last' else 'mean over statement'}  (AUROC {res.loc[name, agg]:.3f})",
-           xlabel="probe score (high = true)", ylabel="test statements")
-    ax.legend(fontsize=8)
-fig.suptitle(f"Truth probe at block {LAYER}: 150 held-out statements, honest persona throughout")
-plt.tight_layout()
+LABELS = {0: "false statements", 1: "true statements"}
+PANELS = [("last", "LR"), ("last", "MM"), ("mean", "LR"), ("mean", "MM")]
+fig, axes = savoy.figure(2, 2, height=170, ytitle="test statements", xtitle="probe score (high = true)",
+                         titles=[f"{name}, {'last token' if agg == 'last' else 'statement mean'} · AUROC {res.loc[name, agg]:.3f}"
+                                 for agg, name in PANELS])
+for ax, (agg, name) in zip(axes, PANELS):
+    bins = np.histogram_bin_edges(probes[agg][name], bins=20)
+    counts = [np.histogram(probes[agg][name][y_test == lab], bins)[0] for lab in LABELS]
+    for i, n in enumerate(counts):
+        ax.stairs(n, bins, fill=True, color=savoy.color(i), alpha=0.10)
+        ax.stairs(n, bins, color=savoy.color(i), linewidth=savoy.px(1.6))
+    savoy.yticks(ax, 0, max(n.max() for n in counts), integer=True)
+    savoy.xticks(ax, bins[0], bins[-1], n=5)
+for i, name in enumerate(LABELS.values()):
+    savoy.key(fig, name, savoy.color(i))
+savoy.save(fig, lib.TOPIC_DIR / "figures/truth_probe_scores.png")
 log.info("block %d test AUROC: last token LR %.3f MM %.3f · statement mean LR %.3f MM %.3f",
          LAYER, res.loc["LR", "last"], res.loc["MM", "last"], res.loc["LR", "mean"], res.loc["MM", "mean"])
 
@@ -76,19 +83,24 @@ for L in LAYERS:
 sweep = pd.DataFrame(rows).set_index("block")
 display(sweep.round(3))
 
-fig, ax = plt.subplots(figsize=(7, 3.5))
-ax.plot(sweep.index, sweep.LR, marker="o", color="C0", label="truth probe, LR")
-ax.plot(sweep.index, sweep.MM, marker="s", color="C1", label="truth probe, MM")
+fig, ax = savoy.figure(ytitle="held-out AUROC", xtitle="block (layer 0–35)")
+ends = []
+for i, p in enumerate(["LR", "MM"]):
+    savoy.line(ax, sweep.index, sweep[p], savoy.color(i), points=True)
+    savoy.key(fig, f"truth probe, {p}", savoy.color(i))
+    ends.append((sweep[p].iloc[-1], f"truth {p}", savoy.color(i)))
 SP_SWEEP = lib.CACHE_DIR / "sp_sweep.json"
 if SP_SWEEP.exists():   # Exp 1's persona probe, for comparison
     sp = pd.read_json(SP_SWEEP)
-    ax.plot(sp.index, sp.LR, ls="--", color="C0", alpha=0.5, label="persona probe (Exp 1), LR")
-    ax.plot(sp.index, sp.MM, ls="--", color="C1", alpha=0.5, label="persona probe (Exp 1), MM")
-ax.axhline(0.5, color="gray", ls=":", label="chance")
-ax.set(xlabel="block (layer, 0-35)", ylabel="held-out AUROC", ylim=(0.45, 1.01),
-       title="Where each probe works: truth vs persona, by block")
-ax.legend(fontsize=7)
-plt.tight_layout()
+    for p in ["LR", "MM"]:
+        savoy.line(ax, sp.index, sp[p], None, baseline=True)
+        ends.append((sp[p].iloc[-1], f"persona {p}", savoy.T["sn"]))
+    savoy.key(fig, "persona probe (Exp 1), LR and MM", savoy.T["sn"], "base")
+savoy.ref(ax, 0.5, "chance")
+savoy.end_labels(ax, ends)
+savoy.yticks(ax, 0.5, 1)
+savoy.xticks(ax, LAYERS[0], LAYERS[-1], ticks=LAYERS)
+savoy.save(fig, lib.TOPIC_DIR / "figures/truth_by_block.png")
 log.info("truth AUROC by block, LR / MM: %s", " · ".join(f"{L}: {r.LR:.3f} / {r.MM:.3f}" for L, r in sweep.iterrows()))
 
 # %% [markdown]
@@ -106,17 +118,21 @@ neg_res = pd.DataFrame({sub: {p: lib.auroc(g[p].values, g.label.values) for p in
 display(neg_res.round(3))
 print(neg[neg.form == "neg"].sample(4, random_state=SEED)[["statement", "label", "MM"]])
 
-fig, axes = plt.subplots(2, 2, figsize=(11, 6.5))
-for r, (form, name) in enumerate([("aff", "affirmative"), ("neg", "negated")]):
-    sub = neg[neg.form == form]
-    for ax, p in zip(axes[r], ["LR", "MM"]):
-        for lab, c, nm in [(1, "C0", "true"), (0, "C3", "false")]:
-            ax.hist(sub.loc[sub.label == lab, p], bins=15, alpha=0.6, color=c, label=nm)
-        ax.set(title=f"{p}, {name} statements  (AUROC {neg_res.loc[name, p]:.3f})",
-               xlabel="probe score (high = true)", ylabel="statements")
-        ax.legend(fontsize=8)
-fig.suptitle("Truth probe trained on plain facts, tested on a new set with and without 'not'")
-plt.tight_layout()
+PANELS = [(f, p) for f in ["affirmative", "negated"] for p in ["LR", "MM"]]
+fig, axes = savoy.figure(2, 2, height=170, ytitle="statements", xtitle="probe score (high = true)",
+                         titles=[f"{p}, {form} · AUROC {neg_res.loc[form, p]:.3f}" for form, p in PANELS])
+for ax, (form, p) in zip(axes, PANELS):
+    sub = neg[neg.form == form[:3]]
+    bins = np.histogram_bin_edges(sub[p], bins=15)
+    counts = [np.histogram(sub.loc[sub.label == lab, p], bins)[0] for lab in LABELS]
+    for i, n in enumerate(counts):
+        ax.stairs(n, bins, fill=True, color=savoy.color(i), alpha=0.10)
+        ax.stairs(n, bins, color=savoy.color(i), linewidth=savoy.px(1.6))
+    savoy.yticks(ax, 0, max(n.max() for n in counts), integer=True)
+    savoy.xticks(ax, bins[0], bins[-1], n=5)
+for i, name in enumerate(LABELS.values()):
+    savoy.key(fig, name, savoy.color(i))
+savoy.save(fig, lib.TOPIC_DIR / "figures/negation_test.png")
 log.info("negation transfer AUROC, LR / MM: affirmative %.3f / %.3f · negated %.3f / %.3f",
          *neg_res.loc["affirmative"], *neg_res.loc["negated"])
 

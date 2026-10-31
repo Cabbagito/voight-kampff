@@ -12,8 +12,10 @@ import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import savoy
 import torch
 from IPython.display import display
+from matplotlib.colors import ListedColormap
 
 import judge as J
 import pv
@@ -322,12 +324,14 @@ if pv.has_ladder(TRAIT):
                        lambda: pv.monitoring_run(model, tok, ladder, eval_qs, LAYER, v, n_samples=N_MON, device=device, **GEN))
     mon = judge.score_df(mon, trait["eval_prompt"], coherence=False)
     agg, r = pv.monitor_correlations(mon)
-    fig, ax = plt.subplots(figsize=(6, 4))
-    sc = ax.scatter(agg.projection, agg.trait_score, c=agg.level, cmap="viridis", s=18)
-    plt.colorbar(sc, label="ladder level (0 = discourages trait)")
-    ax.set_xlabel(f"projection onto v̂, block {LAYER}, last prompt token"); ax.set_ylabel(f"mean {TRAIT} score")
-    ax.set_title(f"overall r = {r['overall_r']:.2f}   within-level r = {r['within_level_r']:.2f}")
-    plt.tight_layout()
+    LEVELS = ListedColormap([savoy.seq_cmap()(.3 + .7 * lv / 7) for lv in range(8)])   # ladder level 0-7, light to dark
+    fig, ax = savoy.figure(height=320, ytitle=f"mean {TRAIT} score", xtitle=f"projection on the vector, block {LAYER}, last prompt token")
+    ax.scatter(agg.projection, agg.trait_score, c=agg.level, cmap=LEVELS, vmin=-.5, vmax=7.5, s=savoy.px(7.8) ** 2, alpha=.85,
+               edgecolors=savoy.T["bg"], linewidths=savoy.px(1), zorder=3)
+    savoy.ramp(fig, "ladder level 0 (discourages the trait)", "7", LEVELS)
+    savoy.yticks(ax, 0, agg.trait_score.max())
+    savoy.xticks(ax, np.floor(agg.projection.min()), np.ceil(agg.projection.max()))
+    savoy.save(fig, f"figures/{TRAIT}_monitor_before.png")
     log.info("monitor before the answer: overall r %.2f · within-level r %.2f", r["overall_r"], r["within_level_r"])
 else:
     log.info("no ladder for %s: monitoring skipped", TRAIT)
@@ -342,7 +346,8 @@ if pv.has_ladder(TRAIT):
         mon_prompts = [pv.chat_prompt(tok, s, q) for s, q in zip(mon.system, mon.question)]
         traj = pv.token_projections(model, tok, mon_prompts, mon.response.tolist(), LAYER, v, device=device)
         pv.save_tensor(traj, tname)   # per answer: [last prompt token, answer tokens...]
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    fig, axes = savoy.figure(1, 2, height=260, ytitle=[f"projection, block {LAYER}", f"r with judged {TRAIT} score"],
+                             xtitle="answer tokens (0 = last prompt token, before the answer)")
     MAX_POS = 150
     for lv, g in mon.groupby("level"):
         M = np.full((len(g), MAX_POS + 1), np.nan)
@@ -351,10 +356,10 @@ if pv.has_ladder(TRAIT):
             M[j, : len(t)] = t
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)   # positions past every answer's end
-            axes[0].plot(np.nanmean(M, 0), color=plt.cm.viridis(lv / 7), lw=1, label=f"level {lv}")
-    axes[0].axvline(0.5, color="k", lw=.5, ls=":")
-    axes[0].set_xlabel("position (0 = last prompt token, then answer tokens)")
-    axes[0].set_ylabel(f"projection onto v̂, block {LAYER}"); axes[0].legend(fontsize=7, ncol=2)
+            savoy.line(axes[0], np.arange(MAX_POS + 1), np.nanmean(M, 0), LEVELS(lv), end=False)
+    savoy.ramp(fig, "ladder level 0", "7", LEVELS)
+    savoy.event(axes[0], 0.5, "answer starts")
+    savoy.yticks(axes[0], *axes[0].dataLim.intervaly); savoy.xticks(axes[0], 0, MAX_POS)
     READ = [0, 1, 2, 4, 8, 16, 32, 64, 128, 256]
     curve = []
     for k in READ:
@@ -362,12 +367,14 @@ if pv.has_ladder(TRAIT):
         curve.append(dict(read=k, overall=rk["overall_r"], within=rk["within_level_r"]))
     curve = pd.DataFrame(curve)
     _, r_ans = pv.monitor_correlations(mon.assign(p=[float(t[1:].mean()) if len(t) > 1 else np.nan for t in traj]), proj_col="p")
-    for col, c in [("overall", "C0"), ("within", "C1")]:
-        axes[1].plot(curve.read, curve[col], marker="o", color=c, label=f"{col} r, running mean")
-        axes[1].axhline(r_ans[f"{col}_r" if col == "overall" else "within_level_r"], color=c, ls="--", lw=1)
-    axes[1].set_xscale("symlog", linthresh=1); axes[1].set_xlim(left=-0.2)
-    axes[1].set_xlabel("answer tokens read (0 = before the answer)"); axes[1].set_ylabel("Pearson r with judged dishonesty")
-    axes[1].legend(fontsize=8); plt.tight_layout()
+    for i, col in enumerate(["overall", "within"]):   # running mean over the first k answer tokens; dashed: whole answer
+        savoy.line(axes[1], curve.read, curve[col], savoy.color(i), points=True)
+        savoy.ref(axes[1], r_ans[f"{col}_r" if col == "overall" else "within_level_r"], threshold=True)
+    savoy.end_labels(axes[1], [(curve[c].iloc[-1], c, savoy.color(i)) for i, c in enumerate(["overall", "within"])])   # the ramp has the key's slot
+    axes[1].set_xscale("symlog", linthresh=1)
+    savoy.xticks(axes[1], 0, 256, ticks=[0, 1, 4, 16, 64, 256]); axes[1].set_xlim(left=-0.2)
+    savoy.yticks(axes[1], 0, curve[["overall", "within"]].max().max())
+    savoy.save(fig, f"figures/{TRAIT}_monitor_during.png")
     log.info("within-level r after 0 · 8 · 64 answer tokens: %s",
              " · ".join(f"{curve.set_index('read').within[k]:.2f}" for k in (0, 8, 64)))
 

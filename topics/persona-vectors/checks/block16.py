@@ -15,8 +15,8 @@
 #     (Cohen's d, weighted by the question's number of lies)?
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
+import savoy
 import torch
 
 log = logging.getLogger(__name__)
@@ -61,19 +61,16 @@ stab = {k: torch.stack(v) for k, v in stab.items()}
 sep = {k: torch.stack(v) for k, v in sep.items()}
 
 blocks = np.arange(a.shape[1])
-fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-for kind, c in (("pooled", "C0"), ("matched", "C1")):
+fig, axes = savoy.figure(1, 2, height=260, ytitle=["cosine, half A vs half B", "separation, Cohen's d"],
+                         xtitle="block (layer 0–35)")
+for i, kind in enumerate(("pooled", "matched")):            # line = mean over the 20 splits, band = min-max
     for ax, D in ((axes[0], stab[kind]), (axes[1], sep[kind])):
-        ax.plot(blocks, D.mean(0), color=c, label=kind)
-        ax.fill_between(blocks, D.min(0).values, D.max(0).values, color=c, alpha=.2)
-axes[0].set(xlabel="block (layer, 0-35)", ylabel="cosine between the two halves' vectors",
-            title="Stability: vector from half A vs half B\n(20 random splits; line = mean, band = min-max)")
-axes[1].set(xlabel="block (layer, 0-35)", ylabel="separation, Cohen's d (held-out half)",
-            title="Lies vs honest answers on unseen answers,\nwithin the same question")
-for ax in axes:
-    ax.legend(); ax.grid(alpha=.3)
-plt.tight_layout()
-plt.savefig("figures/dishonest_stability_separation.png", dpi=110)
+        savoy.line(ax, blocks, D.mean(0).numpy(), savoy.color(i), band=zip(D.min(0).values.numpy(), D.max(0).values.numpy()))
+    savoy.key(fig, kind, savoy.color(i))
+for ax, D in ((axes[0], stab), (axes[1], sep)):
+    savoy.yticks(ax, min(float(v.min()) for v in D.values()), max(float(v.max()) for v in D.values()))
+    savoy.xticks(ax, 0, 35)
+savoy.save(fig, "figures/dishonest_stability_separation.png")
 
 for kind in ("pooled", "matched"):
     s = stab[kind].mean(0)
@@ -91,8 +88,8 @@ for kind in ("pooled", "matched"):
 # turns sharply between 15 and 16, and block 16 writes an unusually large update.
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
+import savoy
 import torch
 
 log = logging.getLogger(__name__)
@@ -118,25 +115,20 @@ cos_next = (Vu[:-1] * Vu[1:]).sum(-1)                                         # 
 upd = ((a[:, 1:] - a[:, :-1]).norm(dim=-1) / a[:, :-1].norm(dim=-1)).mean(0)  # update of block L+1
 
 b = np.arange(L)
-fig, axes = plt.subplots(2, 2, figsize=(12, 7), sharex=True)
-axes[0, 0].plot(b, snr, marker="o", ms=3)
-axes[0, 0].set(ylabel="gap ÷ within-class spread",
-               title="1 · Signal-to-noise: lies-vs-honest gap,\nrelative to how much answers vary anyway")
-axes[0, 1].plot(b, top5_var, marker="o", ms=3, label="all variance across answers")
-axes[0, 1].plot(b, top5_gap, marker="o", ms=3, label="the lies-vs-honest gap")
-axes[0, 1].set(ylabel="share held by the top 5 of 2,560 dims", title="1b · Do a few huge dimensions dominate?")
-axes[0, 1].legend()
-axes[1, 0].plot(b[1:], cos_next, marker="o", ms=3)
-axes[1, 0].set(xlabel="block (layer, 0-35)", ylabel="cos(vector at block L−1, at block L)",
-               title="2 · Rotation: does the direction turn between neighbours?")
-axes[1, 1].plot(b[1:], upd, marker="o", ms=3)
-axes[1, 1].set(xlabel="block (layer, 0-35)", ylabel="‖update‖ ÷ ‖incoming residual‖",
-               title="2 · How much does each block rewrite the residual?")
-for ax in axes.flat:
-    ax.axvline(16, color="C3", lw=1, ls=":")
-    ax.grid(alpha=.3)
-plt.tight_layout()
-plt.savefig("figures/dishonest_block16.png", dpi=110)
+panels = {"1 · gap ÷ within-class spread": [(b, snr)],
+          "1b · share in the top 5 of 2,560 dims": [(b, top5_var, "all variance"), (b, top5_gap, "the gap")],
+          "2 · cos with block L−1's vector": [(b[1:], cos_next)],
+          "2 · ‖update‖ ÷ ‖incoming residual‖": [(b[1:], upd)]}
+fig, axes = savoy.figure(2, 2, height=170, xtitle="block (layer 0–35)", titles=list(panels), sharex=True)
+for ax, lines in zip(axes, panels.values()):
+    for i, (x, y, *name) in enumerate(lines):
+        savoy.line(ax, x, y.numpy(), savoy.color(i))
+    if len(lines) > 1:
+        savoy.end_labels(ax, [(float(y[-1]), name[0], savoy.color(i)) for i, (x, y, *name) in enumerate(lines)])
+    savoy.event(ax, 16, "block 16" if ax is axes[0] else "")
+    savoy.yticks(ax, min(float(y.min()) for _, y, *_ in lines), max(float(y.max()) for _, y, *_ in lines), n=4)
+    savoy.xticks(ax, 0, 35)
+savoy.save(fig, "figures/dishonest_block16.png")
 
 at = (13, 14, 15, 16, 17, 18, 20)
 fmt = lambda x, ks=at: " ".join(f"{float(x[k]):.2f}" for k in ks)
@@ -153,9 +145,9 @@ log.info("update size of blocks %s: %s", "·".join(map(str, at)), fmt(upd, [k - 
 # two, also with the first token left out, in case it's a first-position effect.
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import savoy
 import torch
 
 log = logging.getLogger(__name__)
@@ -203,16 +195,22 @@ sets = {"dishonest answers": pv.load_tensor("acts_dishonest_a63ee90e_v1_first40"
         "random tokens": rn_all, "random tokens, first token left out": rn_rest}
 shares = {k: top5_share(v) for k, v in sets.items()}
 
-fig, ax = plt.subplots(figsize=(10, 4.5))
-styles = ["-", "-", "-", "--", ":", "--", ":"]
-for (k, s), ls in zip(shares.items(), styles):
-    ax.plot(np.arange(len(s)), s, ls, marker="o", ms=2.5, label=k)
-ax.axvline(16, color="C3", lw=1, ls=":")
-ax.set(xlabel="block (layer, 0-35)", ylabel="share of variance held by the top 5 of 2,560 dims",
-       title="Does Qwen3-4B 'go wild' at block 16 on any input?")
-ax.legend(fontsize=8); ax.grid(alpha=.3)
-plt.tight_layout()
-plt.savefig("figures/block16_any_input.png", dpi=110)
+PANELS = {"our traits' answers": ["dishonest answers", "pirate answers", "mystic answers"],
+          "true/false statements": ["true/false statements", "statements, first token left out"],
+          "random tokens": ["random tokens", "random tokens, first token left out"]}
+SLOT = {"dishonest answers": 0, "pirate answers": 1, "mystic answers": 2, "true/false statements": 3, "random tokens": 3,
+        "statements, first token left out": 4, "random tokens, first token left out": 4}   # colour per input
+fig, axes = savoy.figure(1, 3, height=220, ytitle="share of variance in the top 5 of 2,560 dims",
+                         xtitle="block (layer 0–35)", titles=list(PANELS), sharey=True)
+for ax, ks in zip(axes, PANELS.values()):
+    for k in ks:
+        savoy.line(ax, np.arange(len(shares[k])), shares[k].numpy(), savoy.color(SLOT[k]), clip_on=False)   # some sit at 1
+    savoy.event(ax, 16, "block 16" if ax is axes[0] else "")
+    savoy.xticks(ax, 0, 35, ticks=[0, 16, 35])
+savoy.yticks(axes[0], 0, 1)
+for k, i in (("dishonest", 0), ("pirate", 1), ("mystic", 2), ("all tokens", 3), ("first token left out", 4)):
+    savoy.key(fig, k, savoy.color(i))
+savoy.save(fig, "figures/block16_any_input.png")
 
 for k, s in shares.items():
     log.info("%s: top-5 share at blocks 14·15·16·17·20 = %s", k, " ".join(f"{s[L]:.2f}" for L in (14, 15, 16, 17, 20)))

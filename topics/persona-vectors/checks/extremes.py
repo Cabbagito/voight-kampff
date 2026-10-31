@@ -6,8 +6,8 @@
 #      B (a broad shift): the vector barely changes.
 import logging
 
-import matplotlib.pyplot as plt
 import pandas as pd
+import savoy
 import torch
 import torch.nn.functional as F
 
@@ -46,10 +46,9 @@ r = R.loc[SHOW]
 log.info("block %d: %d of %d answers are outliers (%d POS of %d) · %.0f%% of the vector sits in their dims → %.0f%% without them · "
          "cos(rebuilt, original) %.2f", SHOW, r.n_bad, len(X), r.bad_pos, int(pos.sum()), 100 * r.share, 100 * r.share_clean, r.cos_clean)
 
-fig, ax = plt.subplots(figsize=(7.5, 3.8))
-ax.plot(R.block, R.cos_clean, "o-", color="C3")
-ax.axvspan(15.5, 19.5, color="gray", alpha=.15, label="blocks 16–19 (Part 3's quirk)")
-ax.set(xlabel="block (layer, 0-35)", ylabel="cosine: rebuilt vs original",
-       title=f"{TRAIT}: the vector rebuilt without its outlier answers", ylim=(0, 1.02))
-ax.legend(fontsize=8, loc="lower left"); plt.tight_layout()
-plt.savefig(f"figures/{TRAIT}_extremes.png", dpi=120)
+fig, ax = savoy.figure(height=240, ytitle="cosine, rebuilt vs original", xtitle="block (layer 0–35)")
+ax.axvspan(15.5, 19.5, color=savoy.T["sn"], alpha=.13, lw=0)
+savoy.key(fig, "blocks 16–19 (Part 3's quirk)", savoy.T["sn"], "band")
+savoy.line(ax, R.block, R.cos_clean, savoy.color(0), clip_on=False)   # many blocks sit at 1
+savoy.yticks(ax, 0, 1); savoy.xticks(ax, 0, 35)
+savoy.save(fig, f"figures/{TRAIT}_extremes.png")

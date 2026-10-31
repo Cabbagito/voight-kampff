@@ -1,5 +1,6 @@
-"""Cross-trait figures for Exp 1's Part 3, from cache/checks/export_<trait>.json (written by
-export.py inside each trait's esper session). Plain Python:
+"""Cross-trait figures for Exp 1's Parts 3-4, from cache/checks/<kind>_<trait>.json (written by
+export.py, scale.py, pilot.py, sweep.py and dose.py inside each trait's esper session). Plain
+Python, drawn in the Savoy style:
 
     uv run python topics/persona-vectors/checks/plot.py
 """
@@ -9,210 +10,232 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
+import savoy  # noqa: E402
+from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator  # noqa: E402
 
 TOPIC = Path(__file__).resolve().parent.parent
 FIG = TOPIC / "figures"
-TRAITS = {"dishonest": "C3", "pirate": "C0", "mystic": "C2"}
+TRAITS = {t: savoy.color(i) for i, t in enumerate(("dishonest", "pirate", "mystic"))}
 D = {t: json.loads((TOPIC / "cache" / "checks" / f"export_{t}.json").read_text()) for t in TRAITS}
-BLOCK = "block (layer, 0-35)"
+BLOCK = "block (layer 0–35)"
+QUIRK = (16, 19)
+
+
+def load(kind):
+    return {t: json.loads(f.read_text()) for t in TRAITS if (f := TOPIC / "cache" / "checks" / f"{kind}_{t}.json").exists()}
+
+
+def err(ax, x, y, e, color, **kw):
+    """A sparse line (a dot per measurement) with ±1 s.e. whiskers."""
+    savoy.line(ax, x, y, color, points=True, end=False, yerr=e, **kw)
+
+
+def quirk(ax):
+    ax.axvspan(*QUIRK, color=savoy.T["rule"], alpha=0.6, lw=0, zorder=0)
+
+
+def ramp(n):
+    """n ordered colours (weak → strong push) from the sequential ramp."""
+    return [savoy.seq_cmap()(v) for v in np.linspace(0.4, 1, n)]
 
 
 def save(fig, name):
-    fig.tight_layout()
-    fig.savefig(FIG / f"{name}.png", dpi=110)
-    plt.close(fig)
+    savoy.save(fig, FIG / f"{name}.png")
 
 
 # Scores: how strongly each answer shows the trait, per condition
-fig, axes = plt.subplots(1, 3, figsize=(15, 3.8), sharey=True)
+bins = np.arange(0, 105, 5)
+fig, axes = savoy.figure(1, 3, height=190, ytitle="answers", xtitle="trait score from the judge (0 absent, 100 strong)",
+                         titles=list(TRAITS))
+top = max(np.histogram(D[t]["scores"][c]["trait"], bins)[0].max() for t in TRAITS for c in ("POS", "NEG", "BASE"))
 for ax, t in zip(axes, TRAITS):
-    for cond, c in (("POS", "C3"), ("NEG", "C0"), ("BASE", "C7")):
-        ax.hist(D[t]["scores"][cond]["trait"], bins=np.arange(0, 105, 5), alpha=.6, color=c, label=cond)
-    ax.set(title=t, xlabel="trait score from the judge (0 = absent, 100 = strong)")
-    ax.legend(); ax.grid(alpha=.3)
-axes[0].set_ylabel("number of answers")
-fig.suptitle("How strongly each answer shows the trait, by prompt condition")
+    for cond, c in (("POS", savoy.color(0)), ("NEG", savoy.color(1))):
+        n = np.histogram(D[t]["scores"][cond]["trait"], bins)[0]
+        ax.stairs(n, bins, fill=True, color=c, alpha=0.10, zorder=1)
+        ax.stairs(n, bins, color=c, linewidth=savoy.px(1.6), zorder=3)
+    n = np.histogram(D[t]["scores"]["BASE"]["trait"], bins)[0]
+    ax.stairs(n, bins, color=savoy.T["sn"], linewidth=savoy.px(1.4), linestyle=savoy.DASH_BASELINE, zorder=4)
+    savoy.yticks(ax, 0, top, n=4)
+    savoy.xticks(ax, 0, 100, ticks=[0, 50, 100])
+savoy.key(fig, "trait prompt (POS)", savoy.color(0))
+savoy.key(fig, "anti-trait prompt (NEG)", savoy.color(1))
+savoy.key(fig, "no system prompt (BASE)", savoy.T["sn"], "base")
 save(fig, "scores_three_traits")
 
 # Whole answer vs first 40 tokens: cosine against the noise line
-fig, ax = plt.subplots(figsize=(10, 4.5))
-for t, c in TRAITS.items():
-    ax.plot(D[t]["cos_full_first40"], color=c, marker="o", ms=3, label=f"{t}: whole answer vs first 40 tokens")
-    ax.plot(D[t]["noise"], color=c, ls="--", lw=1, label=f"{t}: noise (same vector from two random halves)")
-ax.set(xlabel=BLOCK, ylabel="cosine between the two POS − NEG vectors", ylim=(0.6, 1.01),
-       title="Does averaging the whole answer or only its first 40 tokens change the vector?")
-ax.grid(alpha=.3); ax.legend(fontsize=7.5, ncol=2, loc="lower right")
-save(fig, "first40_three_traits")
+blocks = list(range(len(D["dishonest"]["noise"])))
+savoy.chart("multiples", {
+    "x": {"title": BLOCK, "values": blocks, "ticks": [0, 16, 35]},
+    "y": {"title": "cosine between the two POS − NEG vectors", "domain": [0.6, 1]},
+    "series": [{"id": "cos", "label": "whole answer vs first 40 tokens"},
+               {"id": "noise", "label": "noise: the first-40 vector from two random halves", "baseline": True}],
+    "panels": [{"title": t, "values": {"cos": D[t]["cos_full_first40"], "noise": D[t]["noise"]}} for t in TRAITS],
+}, FIG / "first40_three_traits.png")
 
-# Whole answer vs first 40 tokens, on behaviour: separation and length
-fig, axes = plt.subplots(3, 2, figsize=(12, 9), sharex=True)
+# Whole answer vs first 40 tokens, on behaviour: separation (left) and length (right)
+fig, axes = savoy.figure(3, 2, height=150, ytitle=["separation, Cohen's d", "cosine with a length direction"], xtitle=BLOCK,
+                         titles=[t for t in TRAITS for _ in range(2)])
+WIN = (("full", savoy.color(0), "whole answer"), ("first40", savoy.color(1), "first 40 tokens"))
 for row, t in enumerate(TRAITS):
-    for red, c, name in (("full", "C1", "whole answer"), ("first40", "C0", "first 40 tokens")):
+    sep, lc = axes[2 * row], axes[2 * row + 1]
+    vals, cvals = [], [0]
+    for red, c, _ in WIN:
         w = D[t]["window_check"][red]
         x = np.arange(len(w["sep"]["mean"]))
-        axes[row, 0].plot(x, w["sep"]["mean"], color=c, label=name)
-        axes[row, 0].fill_between(x, w["sep"]["lo"], w["sep"]["hi"], color=c, alpha=.2)
+        savoy.line(sep, x, w["sep"]["mean"], c, band=list(zip(w["sep"]["lo"], w["sep"]["hi"])))
+        vals += w["sep"]["lo"] + w["sep"]["hi"]
         if w["len_cos"] is not None:
-            axes[row, 1].plot(x, w["len_cos"], color=c, marker="o", ms=2.5, label=name)
-    axes[row, 0].set(ylabel=f"{t}\nseparation, Cohen's d")
-    axes[row, 1].set(ylabel="cos with a pure length direction")
-    axes[row, 1].axhline(0, color="k", lw=.5)
-    for ax in axes[row]:
-        ax.grid(alpha=.3); ax.legend(fontsize=8)
-axes[0, 0].set_title("Trait vs not, on unseen answers, within the same question\n(20 random splits; band = min-max)")
-axes[0, 1].set_title("Does the vector also encode answer length?\n(0 = no; built from NEG answers only)")
-for ax in axes[2]:
-    ax.set_xlabel(BLOCK)
+            savoy.line(lc, x, w["len_cos"], c)
+            cvals += w["len_cos"]
+    savoy.ref(lc, 0)
+    savoy.yticks(sep, min(vals), max(vals), n=4)
+    savoy.yticks(lc, min(cvals), max(cvals), n=4)
+    for ax in (sep, lc):
+        savoy.xticks(ax, 0, x[-1], ticks=[0, 16, 24, 35])
+for _, c, name in WIN:
+    savoy.key(fig, name, c)
 save(fig, "window_separation_length")
 
 # Pooled vs matched, on behaviour
-fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharex=True)
-for ax, t in zip(axes, TRAITS):
-    for kind, c in (("pooled", "C0"), ("matched", "C1")):
-        s = D[t]["match_check"][kind]
-        x = np.arange(len(s["mean"]))
-        ax.plot(x, s["mean"], color=c, label=kind)
-        ax.fill_between(x, s["lo"], s["hi"], color=c, alpha=.2)
-    ax.set(title=f"{t} ({D[t]['window']}): cos(pooled, matched) at block 24 = {D[t]['cos_pooled_matched'][24]:.2f}",
-           xlabel=BLOCK, ylabel="separation on unseen answers, Cohen's d")
-    ax.grid(alpha=.3); ax.legend()
-fig.suptitle("Pooled (one pile of trait answers minus one pile of the rest) vs matched (subtract within each question first)")
-save(fig, "pooled_vs_matched_three_traits")
+panels = []
+for t in TRAITS:
+    m = D[t]["match_check"]
+    panels.append({"title": t,
+                   "values": {k: m[k]["mean"] for k in ("pooled", "matched")},
+                   "bands": {k: list(zip(m[k]["lo"], m[k]["hi"])) for k in ("pooled", "matched")}})
+savoy.chart("multiples", {
+    "x": {"title": BLOCK, "values": list(range(len(panels[0]["values"]["pooled"]))), "ticks": [0, 16, 35]},
+    "y": {"title": "separation on unseen answers, Cohen's d"},
+    "series": [{"id": "pooled", "label": "pooled: one pile minus the other"},
+               {"id": "matched", "label": "matched: subtract within each question first"}],
+    "panels": panels,
+}, FIG / "pooled_vs_matched_three_traits.png")
 
 # POS − NEG vs POS − BASE
-fig, ax = plt.subplots(figsize=(10, 4))
-for t, c in TRAITS.items():
-    ax.plot(D[t]["cos_neg_base"], color=c, marker="o", ms=3, label=f"{t} ({D[t]['window']}, matched)")
-ax.axhline(0.9, color="grey", ls="--", lw=1, label="0.9: below this, Part 4 repeats steering with POS − BASE")
-ax.set(xlabel=BLOCK, ylabel="cos(POS − NEG, POS − BASE)", ylim=(0.6, 1.01),
-       title="Does subtracting 'no system prompt' instead of 'the anti-trait prompt' change the vector?")
-ax.grid(alpha=.3); ax.legend(fontsize=8, loc="lower right")
-save(fig, "pos_neg_vs_pos_base")
+savoy.chart("line", {
+    "x": {"title": BLOCK, "values": blocks},
+    "y": {"title": "cos(POS − NEG, POS − BASE)", "domain": [0.6, 1]},
+    "series": [{"id": t, "label": f"{t} ({D[t]['window']}, matched)", "short": t, "values": D[t]["cos_neg_base"]}
+               for t in TRAITS],
+    "refs": [{"y": 0.9, "label": "below this, Part 4 repeats with POS − BASE", "threshold": True}],
+    "height": 260,
+}, FIG / "pos_neg_vs_pos_base.png")
+
 # Scale for steering: residual stream length and each trait's raw gap (scale.py)
-S = {t: json.loads((TOPIC / "cache" / "checks" / f"scale_{t}.json").read_text()) for t in TRAITS}
+S = load("scale")
 tn = S["dishonest"]["tok_norm"]
 x = np.arange(len(tn["median"]))
-fig, axes = plt.subplots(1, 2, figsize=(13, 4.3), sharex=True)
-axes[0].plot(x, tn["median"], color="k", label="residual stream length at one answer token (median)")
-axes[0].fill_between(x, tn["p10"], tn["p90"], color="k", alpha=.12, label="10th-90th percentile")
+fig, (a, b) = savoy.figure(1, 2, height=240, ytitle=["vector length (log scale)", "gap / stream length"], xtitle=BLOCK)
+stream = savoy.color(3)
+savoy.line(a, x, tn["median"], stream, band=list(zip(tn["p10"], tn["p90"])))
+savoy.key(fig, "residual stream length (median, 10–90th pct)", stream)
 for t, c in TRAITS.items():
-    axes[0].plot(x, S[t]["gap"], color=c, marker="o", ms=3, label=f"{t}: raw POS − NEG gap length")
-    axes[1].plot(x, np.array(S[t]["gap"]) / np.array(tn["median"]), color=c, marker="o", ms=3, label=t)
-axes[0].set(yscale="log", xlabel=BLOCK, ylabel="vector length (log scale)",
-            title="How big is the residual stream, and how far apart are POS and NEG?")
-axes[1].set(xlabel=BLOCK, ylabel="gap length / residual stream length",
-            title="The trait gap as a fraction of the residual stream")
-for ax in axes:
-    ax.axvspan(16, 19, color="grey", alpha=.15, lw=0)
-    ax.grid(alpha=.3); ax.legend(fontsize=8)
-axes[1].text(17.5, axes[1].get_ylim()[1] * .95, "block-16\nquirk", ha="center", va="top", fontsize=8, color="grey")
+    savoy.line(a, x, S[t]["gap"], c)
+    savoy.line(b, x, np.array(S[t]["gap"]) / np.array(tn["median"]), c)
+    savoy.key(fig, f"{t}: POS − NEG gap", c)
+a.set_yscale("log")
+a.yaxis.set_major_locator(FixedLocator([1, 10, 100, 1000]))
+a.yaxis.set_minor_locator(NullLocator())
+a.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+lo = min(min(tn["p10"]), *(min(S[t]["gap"]) for t in TRAITS))
+a.set_ylim(10 ** np.floor(np.log10(lo)), 10 ** np.ceil(np.log10(max(tn["p90"]))))
+r = [v for t in TRAITS for v in np.array(S[t]["gap"]) / np.array(tn["median"])]
+savoy.yticks(b, 0, max(r), include=[0], n=5)
+for ax in (a, b):
+    quirk(ax)
+    savoy.xticks(ax, 0, x[-1], ticks=[0, 8, 16, 24, 35])
+savoy.note(b, 17.5, b.get_ylim()[1] * 0.92, "block-16 quirk", anchor="middle")
 save(fig, "steering_scale")
 
 # Pilot: trait and coherence against the size of the push, one block (pilot.py)
-P = {t: json.loads(f.read_text()) for t in TRAITS if (f := TOPIC / "cache" / "checks" / f"pilot_{t}.json").exists()}
+P = load("pilot")
 if P:
-    fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), sharex=True)
+    d0 = next(iter(P.values()))
+    fig, axes = savoy.figure(1, 2, height=240, ytitle=["mean trait score", "mean coherence"],
+                             xtitle=f"push / stream length at block {d0['layer']} (log scale)")
     ticks = set()
     for t, d in P.items():
-        base = [x for x in d["rows"] if x["frac"] == 0]
         for ax, k in zip(axes, ("trait", "coh")):
-            b = sum(x[k] * x["n"] for x in base) / sum(x["n"] for x in base)
-            for rnd, ls, a in (("coarse", ":", .45), ("zoom", "-", 1)):
+            for rnd in ("coarse", "zoom"):
                 r = [x for x in d["rows"] if x["frac"] > 0 and x["round"] == rnd]
-                if r:
-                    ticks |= {x["frac"] for x in r}
-                    ax.errorbar([x["frac"] for x in r], [x[k] for x in r], yerr=[x[f"{k}_sem"] for x in r],
-                                color=TRAITS[t], marker="o", ms=4, ls=ls, alpha=a, capsize=3,
-                                label=f"{t}, {rnd} round" + (f"  (unsteered: {b:.0f})" if rnd == "zoom" else ""))
-            ax.axvline(d["gap_frac"], color=TRAITS[t], ls=(0, (1, 3)), lw=1.2)
-    d0 = next(iter(P.values()))
-    ticks = sorted(ticks)
-    for ax, name in zip(axes, ("trait score", "coherence")):
-        ax.set(xscale="log", ylim=(-2, 102), xlabel=f"α / residual stream length at block {d0['layer']} (length {d0['h_len']:.0f})",
-               ylabel=f"mean {name} from the judge (0-100)")
-        ax.set_xticks(ticks, [f"{x:.2g}" for x in ticks], fontsize=7); ax.minorticks_off()
-        ax.grid(alpha=.3); ax.legend(fontsize=7)
-    axes[0].set_title("How much of the trait shows? (sparse dots: one POS − NEG gap per trait)")
-    axes[1].set_title("Do the answers stay coherent?")
-    fig.suptitle(f"Pilot: steering at block {d0['layer']} ({d0['positions']} positions). Coarse: 20 answers per point; "
-                 "zoom: 40 (20 questions × 2). ±1 s.e.")
+                ticks |= {x["frac"] for x in r}
+                kw = dict(linestyle=savoy.DASH_THRESHOLD, alpha=0.5) if rnd == "coarse" else {}
+                err(ax, [x["frac"] for x in r], [x[k] for x in r], [x[f"{k}_sem"] for x in r], TRAITS[t], **kw)
+            ax.axvline(d["gap_frac"], color=TRAITS[t], linestyle=savoy.DASH_EVENT, linewidth=savoy.px(1.2))
+    for ax in axes:
+        ax.set_xscale("log")
+        shown = [0.05, 0.1, 0.2, 0.4, 0.8, 1.6]
+        ax.set_xticks(shown, [f"{v:g}" for v in shown])
+        ax.xaxis.set_minor_locator(NullLocator())
+        ax.set_xlim(min(ticks) * 0.85, max(ticks) * 1.15)
+        savoy.yticks(ax, 0, 100)
+    for t, c in TRAITS.items():
+        savoy.key(fig, t, c)
+    savoy.key(fig, "coarse round", savoy.T["sn"], "base")
     save(fig, "pilot_strength")
+
 # Layer sweeps (sweep.py). B: trait, coherence and the Part 3 filter per block, one line per strength.
 # Then A / B / C side by side on the measure used to pick blocks: mean per-answer trait × coherence / 100.
-W = {t: json.loads(f.read_text()) for t in TRAITS if (f := TOPIC / "cache" / "checks" / f"sweep_{t}.json").exists()}
-VARIANTS = {"all": "A: push every prompt token too", "response": "B: the paper's (newest position, pushed cache)",
-            "clean": "C: newest position, clean cache"}
+W = load("sweep")
+VARIANTS = {"all": "A: every token", "response": "B: the paper's", "clean": "C: clean cache"}
 
 
 def lines(ax, d, pos, k, m=1):
     fr = d["sweeps"][pos]["fracs"]
-    for f, c in zip(fr, plt.cm.viridis(np.linspace(0.85, 0.15, len(fr)))):
+    for f, c in zip(fr, ramp(len(fr))):
         r = sorted((x for x in d["cells"] if x["positions"] == pos and abs(x["frac"] - f) < 1e-6), key=lambda x: x["layer"])
-        ax.errorbar([x["layer"] for x in r], [m * x[k] for x in r], yerr=[m * x[f"{k}_sem"] for x in r],
-                    color=c, marker="o", ms=3.5, capsize=2, label=f"α = {f:.3g} × stream length")
-    ax.axhline(m * d["unsteered"][k], color="k", ls="--", lw=1, label=f"unsteered ({m * d['unsteered'][k]:.0f})")
-    ax.axvspan(16, 19, color="grey", alpha=.15, lw=0)
-    ax.set(ylim=(-2, 102), xticks=list(range(6, 33, 3)))
-    ax.grid(alpha=.3)
+        err(ax, [x["layer"] for x in r], [m * x[k] for x in r], [m * x[f"{k}_sem"] for x in r], c)
+    ax.axhline(m * d["unsteered"][k], color=savoy.T["sn"], linewidth=savoy.px(1.4), linestyle=savoy.DASH_BASELINE)
+    quirk(ax)
+    savoy.yticks(ax, 0, 100, n=4)
+    savoy.xticks(ax, 5, 31, ticks=[6, 12, 18, 24, 30])
 
 
 if W:
-    fig, axes = plt.subplots(len(W), 3, figsize=(18, 3.4 * len(W)), sharex=True, squeeze=False)
+    fig, axes = savoy.figure(len(W), 3, height=150, xtitle=BLOCK,
+                             ytitle=["mean trait score", "mean coherence", "% doing both"],
+                             titles=[t for t in W for _ in range(3)])
     for row, (t, d) in enumerate(W.items()):
-        for ax, k, name in zip(axes[row], ("trait", "coh", "both"),
-                               ("mean trait score (0-100)", "mean coherence (0-100)", "% of answers with both")):
-            lines(ax, d, "response", k, 100 if k == "both" else 1)
-            ax.set_ylabel(f"{t}\n{name}")
-        axes[row, 1].axhline(75, color="C3", ls=":", lw=1.2, label="75: the paper's coherence bar")
-        axes[row, 1].legend(fontsize=7, loc="lower left")
-    axes[0, 0].set_title("How much of the trait shows?")
-    axes[0, 1].set_title("Do the answers stay coherent?")
-    axes[0, 2].set_title("How many answers do both?\n(trait ≥ 60 and coherence ≥ 70: Part 3's filter)")
-    for ax in axes[-1]:
-        ax.set_xlabel(BLOCK)
-    fig.suptitle("Layer sweep: steering at one block at a time (B positions, the paper's sampling), "
-                 "20 questions × 2 answers per point, ±1 s.e.\nGrey band: blocks 16-19 (the block-16 quirk).")
+        for col, k in enumerate(("trait", "coh", "both")):
+            lines(axes[3 * row + col], d, "response", k, 100 if k == "both" else 1)
+        savoy.ref(axes[3 * row + 1], 75, threshold=True)
+    for f, c in zip(next(iter(W.values()))["sweeps"]["response"]["fracs"], ramp(4)):
+        savoy.key(fig, f"{f:.3g}", c)
+    savoy.key(fig, "unsteered", savoy.T["sn"], "base")
     save(fig, "layer_sweep")
 
     pos_all = [p for p in VARIANTS if any(p in d["sweeps"] for d in W.values())]
     if len(pos_all) > 1:
-        fig, axes = plt.subplots(len(W), len(pos_all), figsize=(6 * len(pos_all), 3.4 * len(W)), sharex=True, sharey=True,
-                                 squeeze=False)
+        fig, axes = savoy.figure(len(W), len(pos_all), height=150, xtitle=BLOCK,
+                                 ytitle="mean trait × coherence / 100",
+                                 titles=[f"{t}, {VARIANTS[p]}" for t in W for p in pos_all])
         for row, (t, d) in enumerate(W.items()):
             for col, pos in enumerate(pos_all):
-                ax = axes[row, col]
+                ax = axes[row * len(pos_all) + col]
                 if pos in d["sweeps"]:
                     lines(ax, d, pos, "prod")
-                    ax.legend(fontsize=7, loc="upper left")
-                if row == 0:
-                    ax.set_title(VARIANTS[pos])
-            axes[row, 0].set_ylabel(f"{t}\nmean trait × coherence / 100")
-        for ax in axes[-1]:
-            ax.set_xlabel(BLOCK)
-        fig.suptitle("Where the push goes: A vs B vs C. Per answer, trait score × coherence / 100 (high only when an answer "
-                     "is both), averaged; 40 answers per point, ±1 s.e.\nStrengths differ by variant. Grey band: blocks 16-19.")
+        d0 = next(iter(W.values()))["sweeps"]
+        for f, fc, c in zip(d0["response"]["fracs"], d0.get("clean", d0["response"])["fracs"], ramp(4)):
+            savoy.key(fig, f"{f:.3g} (C {fc:.2g})", c)
         save(fig, "variant_sweep")
+
 # Strength curve at each trait's chosen block and variant (dose.py)
-DS = {t: json.loads(f.read_text()) for t in TRAITS if (f := TOPIC / "cache" / "checks" / f"dose_{t}.json").exists()}
+DS = load("dose")
 if DS:
+    fig, axes = savoy.figure(1, 3, height=200, xtitle="push / stream length at the chosen block",
+                             ytitle=["mean trait score", "mean coherence", "trait × coherence / 100"])
     NAME = {"all": "A", "response": "B", "clean": "C"}
-    fig, axes = plt.subplots(1, 3, figsize=(18, 4.3), sharex=True)
     for t, d in DS.items():
         x = [r["frac"] for r in d["rows"]]
         for ax, k in zip(axes, ("trait", "coh", "prod")):
-            ax.errorbar(x, [r[k] for r in d["rows"]], yerr=[r[f"{k}_sem"] for r in d["rows"]], color=TRAITS[t], marker="o",
-                        capsize=3, label=f"{t}: {NAME[d['positions']]} at block {d['layer']}  (unsteered {d['unsteered'][k]:.0f})")
-            ax.axhline(d["unsteered"][k], color=TRAITS[t], ls="--", lw=1)
-    for ax, name in zip(axes, ("mean trait score", "mean coherence", "mean trait × coherence / 100")):
-        ax.set(ylim=(-2, 102), xlabel="α / stream length at the chosen block", ylabel=f"{name} (0-100)", xticks=x)
-        ax.grid(alpha=.3); ax.legend(fontsize=7)
-    axes[1].axhline(75, color="grey", ls=":", lw=1.2)
-    axes[0].set_title("How much of the trait shows?")
-    axes[1].set_title("Do the answers stay coherent? (dotted: the paper's 75)")
-    axes[2].set_title("Both in the same answer (the measure that picked the block)")
-    fig.suptitle("Strength curve at each trait's chosen block and variant: 20 questions × 3 answers per point, ±1 s.e.; "
-                 "dashed: unsteered")
+            err(ax, x, [r[k] for r in d["rows"]], [r[f"{k}_sem"] for r in d["rows"]], TRAITS[t])
+            ax.axhline(d["unsteered"][k], color=TRAITS[t], linewidth=savoy.px(1.2), linestyle=savoy.DASH_BASELINE, alpha=0.8)
+        savoy.key(fig, f"{t}: {NAME[d['positions']]} at {d['layer']}", TRAITS[t])
+    savoy.ref(axes[1], 75, threshold=True)
+    for ax in axes:
+        savoy.yticks(ax, 0, 100, n=4)
+        savoy.xticks(ax, 0.1, 0.6, ticks=[0.1, 0.3, 0.6], exact=False)
+        ax.set_xlim(0.07, 0.63)
     save(fig, "strength_curve")
 print("figures written to", FIG)

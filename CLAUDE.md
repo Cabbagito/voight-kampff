@@ -67,13 +67,18 @@ X", Claude makes it happen and shows the result.
   (`NN_name.py`, `# %%` cells titled exactly like the doc's steps, few
   comments). Each step logs its findings with `logging` (`log.info(...)`).
   Key figures are copied into the topic's `figures/` and embedded in the doc.
-- Code runs in **esper** (`~/Projects/esper`, an editable dependency). How to
+- Code runs in **esper** (`~/Projects/esper`, an editable dependency in the
+  `lab` group, installed by plain `uv sync`; the code never imports it). How to
   use it is in ESPER.md (imported below; regenerate it with
   `uv run esper init --force`). In this repo:
   - one session per trait (`-s dishonest`, `-s pirate`, `-s mystic`), with
     their boards open in Peter's terminal tabs;
   - show figures with SendUserFile (render), and copy the keepers into the
     topic's `figures/`;
+  - draw figures with **savoy** (the cabbagito.com chart style; source in `~/Projects/savoy`,
+    installed from github.com/Cabbagito/savoy, so after changing it: push, then
+    `uv lock --upgrade-package savoy && uv sync`): `savoy.chart(kind, data, path)` or
+    `savoy.figure()` + parts; its README has the API;
   - `pv.load_model` shares the server's weights when `ESPER_SOCKET` is set.
 
 @ESPER.md

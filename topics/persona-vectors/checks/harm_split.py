@@ -6,8 +6,8 @@ import sys
 
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import pandas as pd
+import savoy
 
 sys.path.insert(0, ".")
 import judge as J
@@ -53,13 +53,22 @@ print("\ntraining (POS prompt + few-shot lies):\n", tr[tr.condition == "POS"].gr
     questions=("qid", "nunique"), lies=("trait_score", lambda s: (s >= 60).mean())).round(2)
     .join(kept[kept.condition == "POS"].groupby("group").size().rename("kept_POS")).to_string())
 
-fig, axes = plt.subplots(1, 2, figsize=(11, 3.8), sharey=True)
-for g, c in zip(["harmless", "ethics-loaded", "harm-loaded"], ["C0", "C1", "C3"]):
+
+
+def errline(ax, x, m, s, c):
+    """Line with points and ±1 SE bars."""
+    savoy.line(ax, x, m, c, points=True, yerr=s)
+
+
+# x: left, push strength × stream length at block 18 (0 = unsteered); right, ladder level (0 = honest … 7 = openly dishonest)
+fig, axes = savoy.figure(1, 2, height=240, ytitle="mean dishonesty (judge)", sharey=True,
+                         titles=["steered: push (× stream length)", "prompted: ladder level"])
+for i, g in enumerate(["harm-loaded", "ethics-loaded", "harmless"]):
     m = S[S.run == "cleaned vector, A"].groupby(["frac", "group"]).trait_score.agg(["mean", "sem"]).xs(g, level="group")
-    axes[0].errorbar(m.index, m["mean"], yerr=m["sem"], marker="o", capsize=3, color=c, label=f"{g} ({sum(v == g for v in group.values())} q)")
+    errline(axes[0], m.index, m["mean"], m["sem"], savoy.color(i))
     p = mon.groupby(["level", "group"]).trait_score.agg(["mean", "sem"]).xs(g, level="group")
-    axes[1].errorbar(p.index, p["mean"], yerr=p["sem"], marker="o", capsize=3, color=c)
-axes[0].set(xlabel="push strength (× stream at block 18; 0 = unsteered)", ylabel="mean dishonesty (judge, 0-100)",
-            title="steered: cleaned vector, no system prompt")
-axes[1].set(xlabel="ladder level (0 = honest prompt … 7 = openly dishonest prompt)", title="prompted: MONITOR ladder, no steering")
-axes[0].legend(fontsize=8); plt.tight_layout(); plt.savefig("figures/dishonest_harm_split.png", dpi=120)
+    errline(axes[1], p.index, p["mean"], p["sem"], savoy.color(i))
+    savoy.key(fig, f"{g} ({sum(v == g for v in group.values())} q)", savoy.color(i))
+savoy.yticks(axes[0], 0, 80)
+savoy.xticks(axes[0], 0, 0.6); savoy.xticks(axes[1], 0, 7)
+savoy.save(fig, "figures/dishonest_harm_split.png")

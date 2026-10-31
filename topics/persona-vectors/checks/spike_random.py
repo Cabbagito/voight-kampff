@@ -8,8 +8,8 @@ import os
 import sys
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
+import savoy
 import torch
 
 ROOT = Path.cwd() if (Path.cwd() / "pv.py").exists() else Path.cwd().parent   # esper runs from checks/
@@ -60,15 +60,17 @@ log.info("spike / typical |projection|, median over answers: dishonest %.0f× ·
          *ratio[:3].tolist(), float(ratio[3:].median()), float(ratio[3:].min()), float(ratio[3:].max()))
 
 # %% Plot
-fig, ax = plt.subplots(figsize=(7, 3.8))
+fig, ax = savoy.figure(height=240, ytitle="spike token ÷ other tokens, |projection|")
 x = np.arange(3 + 1)
 vals = [*ratio[:3].tolist(), float(ratio[3:].median())]
-ax.bar(x, vals, color=["C3", "C4", "C2", "gray"])
-ax.errorbar([3], [vals[3]], yerr=[[vals[3] - float(ratio[3:].min())], [float(ratio[3:].max()) - vals[3]]],
-            color="k", capsize=4)
-ax.set_xticks(x, ["dishonest", "mystic", "pirate", f"{N_RAND} random\n(median, range)"])
-ax.set_yscale("log")
-ax.set(ylabel="how many times bigger the reading is\nat the spike token than at other tokens",
-       title=f"Spike tokens, read along different directions (block {LAYER}, {len(spiked)} answers)")
-plt.tight_layout(); plt.savefig("figures/spike_random_directions.png", dpi=120)
+ax.bar(x, vals, width=.6, color=[savoy.color(0)] * 3 + [savoy.T["sn"]], zorder=3)   # random: the control
+ax.errorbar([3], [vals[3]], yerr=[[vals[3] - float(ratio[3:].min())], [float(ratio[3:].max()) - vals[3]]], fmt="none",
+            ecolor=savoy.T["ink"], alpha=.55, elinewidth=savoy.px(1.2), capsize=savoy.px(3), capthick=savoy.px(1.2), zorder=4)
+ax.set_xticks(x, ["dishonest", "mystic", "pirate", f"{N_RAND} random (median, range)"])
+ax.set_xlim(-.5, 3.5)
+ax.set_yscale("log"); ax.minorticks_off()
+decades = 10.0 ** np.arange(np.ceil(np.log10(float(ratio.max()))) + 1)
+ax.set_yticks(decades); ax.set_ylim(1, decades[-1])
+ax.yaxis.set_major_formatter(lambda v, _: savoy.fmt()(v) + "×")
+savoy.save(fig, "figures/spike_random_directions.png")
 log.info("saved figures/spike_random_directions.png")

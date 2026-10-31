@@ -1,6 +1,6 @@
 # Emergent Misalignment — experiment plan
 
-Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
+Status, after each experiment's title: planned, in progress, done or abandoned.
 
 **Question:** Narrow fine-tuning makes models broadly misaligned. Is that a shift along a persona direction, and can steering prevent it?
 
@@ -16,7 +16,7 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 
 ---
 
-### Exp 1 — Reproduce EM on a small model 📋
+### Exp 1 — Reproduce EM on a small model (planned)
 
 **Design:**
 - LoRA-fine-tune Qwen3-4B on one of the model-organism datasets (bad medical advice, risky financial advice or extreme sports; pick one).
@@ -25,7 +25,7 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 
 **Predict first:** EM rate (misaligned and coherent) on 4B.
 
-### Exp 2 — Is EM a move along v_evil? 📋
+### Exp 2 — Is EM a move along v_evil? (planned)
 
 **Design:**
 - Compute the model-diff direction: mean activation difference between the EM model and the base model on neutral prompts.
@@ -37,7 +37,7 @@ Status legend: 📋 planned · 🚧 in progress · ✅ done · ❌ abandoned
 
 **Predict first:** cos(model-diff, v_evil).
 
-### Exp 3 — Preventative steering during fine-tuning 📋
+### Exp 3 — Preventative steering during fine-tuning (planned)
 
 **Design:**
 - Re-run the Exp 1 fine-tune while adding +v_evil to the residual during training (Persona Vectors §5). The gradient then has no reason to move the model along v_evil.

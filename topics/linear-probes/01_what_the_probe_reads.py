@@ -9,9 +9,9 @@
 # %% Load the model
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import savoy
 from IPython.display import display
 
 import lib
@@ -54,14 +54,13 @@ sp_sweep = pd.DataFrame(rows).set_index("block")
 display(sp_sweep.round(3))
 sp_sweep.to_json(lib.CACHE_DIR / "sp_sweep.json")   # 02 overlays it on the truth sweep
 
-fig, ax = plt.subplots(figsize=(7, 3.5))
-ax.plot(sp_sweep.index, sp_sweep.LR, marker="o", label="logistic regression (LR)")
-ax.plot(sp_sweep.index, sp_sweep.MM, marker="s", label="difference of means (MM)")
-ax.axhline(0.5, color="gray", ls=":", label="chance")
-ax.set(xlabel="block (layer, 0-35)", ylabel="test AUROC, honest vs untruthful", ylim=(0.45, 1.01),
-       title="Instructed-pairs probe: held-out AUROC by block")
-ax.legend(fontsize=8)
-plt.tight_layout()
+savoy.chart("line", {
+    "x": {"title": "block (layer 0–35)", "values": list(sp_sweep.index), "ticks": LAYERS},
+    "y": {"title": "test AUROC, honest vs untruthful"}, "points": "all",
+    "series": [{"id": "LR", "label": "logistic regression (LR)", "short": "LR", "values": list(sp_sweep.LR)},
+               {"id": "MM", "label": "difference of means (MM)", "short": "MM", "values": list(sp_sweep.MM)}],
+    "refs": [{"y": 0.5, "label": "chance"}],
+}, lib.TOPIC_DIR / "figures/persona_probe_by_block.png")
 log.info("test AUROC by block, LR / MM: %s", " · ".join(f"{L}: {r.LR:.3f} / {r.MM:.3f}" for L, r in sp_sweep.iterrows()))
 
 # %% Save the probe
@@ -99,17 +98,21 @@ log.info("normalised score (TT = 0, DD = 1), LR / MM: %s",
 
 # %% Plot the paired traces
 ORDER = ["TT", "TD", "DT", "DD"]
-fig, axes = plt.subplots(1, 2, figsize=(11, 3.8), sharey=True)
-for ax, col, name in zip(axes, ["LR_norm", "MM_norm"], ["LR", "MM"]):
+fig, axes = savoy.figure(1, 2, height=260, sharey=True, ytitle=["probe score, 0 = TT mean, 1 = DD mean", None],
+                         xtitle="condition (persona, answer): T = honest, D = untruthful / lying",
+                         titles=["LR probe", "MM probe"])
+for ax, col in zip(axes, ["LR_norm", "MM_norm"]):
     piv = sw.pivot(index="qid", columns="condition", values=col)[ORDER]
-    for _, row in piv.iterrows():
-        ax.plot(ORDER, row.values, color="gray", alpha=0.15, marker="o", ms=3)
-    ax.plot(ORDER, piv.mean().values, color="k", lw=2.5, marker="o", ms=8, label="mean of 50 questions")
-    ax.set(title=f"{name} probe", xlabel="condition (persona, answer): T = honest, D = untruthful / lying")
-    ax.legend(fontsize=8)
-axes[0].set_ylabel("probe score, 0 = TT mean, 1 = DD mean")
-fig.suptitle("Same probe, persona and answer swapped independently")
-plt.tight_layout()
+    ax.plot(range(4), piv.values.T, color=savoy.T["sn"], alpha=0.28, linewidth=savoy.px(1))
+    ax.plot(range(4), piv.mean().values, color=savoy.color(0), linewidth=savoy.px(3.2), marker="o",
+            markersize=savoy.px(13), markeredgewidth=savoy.px(2), markeredgecolor=savoy.T["bg"], zorder=5)
+    ax.set_xticks(range(4), ORDER)
+    ax.set_xlim(-0.25, 3.25)
+savoy.yticks(axes[0], sw[["LR_norm", "MM_norm"]].min().min(), sw[["LR_norm", "MM_norm"]].max().max())
+axes[1].tick_params(labelleft=False)
+savoy.key(fig, "each question", savoy.T["sn"])
+savoy.key(fig, f"mean of {sw.qid.nunique()} questions", savoy.color(0))
+savoy.save(fig, lib.TOPIC_DIR / "figures/switch_test.png")
 
 # %% [markdown]
 # ## Part 3 — Hold the persona, change the topic
@@ -161,11 +164,18 @@ log.info("how well the probe tells the topics apart (1 − AUROC; 0.5 = can't): 
          " · ".join(f"{c} {x:.2f}" for c, x in spurious.items()))
 
 # %% Plot the score distributions
-fig, axes = plt.subplots(2, 2, figsize=(11, 6.5))
-for ax, col in zip(axes.flat, spurious.index):
-    for cat, c in [("deception_adjacent", "C3"), ("neutral", "C0")]:
-        ax.hist(scores.loc[scores.category == cat, col], bins=15, alpha=0.6, color=c, label=cat.replace("_", "-"))
-    ax.set(title=f"{col}  (1 − AUROC {spurious[col]:.2f})", xlabel="probe score (high = honest)", ylabel="answers")
-    ax.legend(fontsize=8)
-fig.suptitle("Honest persona, honest answers: deception-adjacent vs neutral questions")
-plt.tight_layout()
+CATS = {"deception_adjacent": "deception-adjacent questions", "neutral": "neutral questions"}
+fig, axes = savoy.figure(2, 2, height=170, ytitle="answers", xtitle="probe score (high = honest)",
+                         titles=[f"{c} · 1 − AUROC {x:.2f}" for c, x in spurious.items()])
+for ax, col in zip(axes, spurious.index):
+    groups = [scores.loc[scores.category == cat, col] for cat in CATS]
+    bins = np.histogram_bin_edges(np.concatenate(groups), bins=15)
+    counts = [np.histogram(g, bins)[0] for g in groups]
+    for i, n in enumerate(counts):
+        ax.stairs(n, bins, fill=True, color=savoy.color(i), alpha=0.10)
+        ax.stairs(n, bins, color=savoy.color(i), linewidth=savoy.px(1.6))
+    savoy.yticks(ax, 0, max(n.max() for n in counts), integer=True)
+    savoy.xticks(ax, bins[0], bins[-1], n=5)
+for i, name in enumerate(CATS.values()):
+    savoy.key(fig, name, savoy.color(i))
+savoy.save(fig, lib.TOPIC_DIR / "figures/topic_test.png")

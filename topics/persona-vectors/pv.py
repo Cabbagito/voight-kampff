@@ -733,7 +733,7 @@ def save_df(df: pd.DataFrame, name: str) -> Path:
 
 
 def load_df(name: str) -> pd.DataFrame:
-    return pd.read_json(CACHE_DIR / f"{name}.jsonl", orient="records", lines=True)
+    return pd.read_json(CACHE_DIR / f"{name}.jsonl", orient="records", lines=True, precise_float=True)   # 0.3, not 0.30000000000000004
 
 
 def cached_df(name: str, fn) -> pd.DataFrame:

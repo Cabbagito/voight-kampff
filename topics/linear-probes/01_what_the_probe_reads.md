@@ -65,7 +65,7 @@ The untruthful version is identical except for one word: "untruthful". So the la
 
 ![Persona probe AUROC by block](figures/persona_probe_by_block.png)
 
-*Held-out AUROC by block, honest vs untruthful persona. LR (blue) is near ceiling everywhere. MM (orange) peaks at block 20, where it comes closest to LR.* [ours]
+*Held-out AUROC by block, honest vs untruthful persona. LR is near ceiling everywhere. MM peaks at block 20, where it comes closest to LR.* [ours]
 
 What surprised us, against Peter's written predictions (≥ 0.95 at block 14, ≥ 0.7 at block 4, ≥ 0.9 at block 32) [ours]:
 - **Block 4 already hits 0.94.** One word of difference in the prompt is linearly readable after only 4 blocks.
@@ -104,7 +104,7 @@ How to read it:
 
 ![Switch test](figures/switch_test.png)
 
-*Each grey line is one question across the four conditions; black is the mean. Both probes jump between TD and DT, which is where the persona flips. The lying answer moves them only a little (TT → TD).* [ours]
+*Same probe, persona and answer swapped independently. Each grey line is one question across the four conditions; the bold line is the mean of 50. Both probes jump between TD and DT, which is where the persona flips. The lying answer moves them only a little (TT → TD).* [ours]
 
 - **The probe follows the persona.** A lying answer under an honest persona scores only 0.28 (LR) of the way to "untruthful".
 - **LR is more persona-locked than MM.** MM moves further with the answer (TD 0.40). That fits Marks & Tegmark's account: LR's boundary suppresses everything but the strongest separating signal [paper → synthesis].
@@ -151,7 +151,7 @@ The Part 1 probes score them, unchanged. The number reported is **1 − AUROC** 
 
 ![Topic test](figures/topic_test.png)
 
-*Honest persona, honest answers. Red: deception-adjacent questions; blue: neutral. With the mean readout, the probe rates honest answers about scams and lying clearly more "untruthful" than honest answers about carpets.* [ours]
+*Honest persona, honest answers: deception-adjacent vs neutral questions, scored by each probe and readout (1 − AUROC in each panel's title). With the mean readout, the probe rates honest answers about scams and lying clearly more "untruthful" than honest answers about carpets.* [ours]
 
 **Prediction overturned.** Peter predicted ≈ 0.5: hold the persona fixed and the probe has nothing to grab. Instead, honest text *about* deception scores as more untruthful, and strongly so under the mean readout.
 

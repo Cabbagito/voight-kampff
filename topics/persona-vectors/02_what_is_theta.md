@@ -135,7 +135,7 @@ The reverse of step 2: push −θ_mm (toward "false") at block 20 while Qwen ans
 
 ![Three judges under −θ_mm and v_dishonest](figures/theta_push_three_judges.png)
 
-*Mean judge score per push and strength at block 20, 60 answers per point, ±1 standard error. Orange: −θ_mm; red: v_dishonest.* [ours]
+*Mean judge score per push and strength at block 20, one panel per judge, 60 answers per point, ±1 standard error.* [ours]
 
 - **No honesty talk at all:** 0–2 at every strength for both pushes. The "I'm not honest" spiel needs linear-probes' setup: the honest-persona prompt the push clashes with, or the much harder push [synthesis].
 - **−θ_mm makes the content wrong, not deceptive.** False content goes 22 → 42 at 0.4 and dishonesty 11 → 24, while coherence falls 87 → 64. The answers are confident mistakes: acetaminophen's "maximum safe dose… 70 grams per day"; "swimming right after eating is dangerous", the myth stated as fact. No reassurance.
@@ -151,7 +151,7 @@ Pirate is the "nothing to do with honesty" control. If pushing it raised dishone
 
 ![Pirate vs random at equal strength](figures/pirate_leak.png)
 
-*Pirate (green) vs a random direction (grey) at block 18, 60 answers per point, ±1 standard error.* [ours]
+*Pirate (solid) vs a random direction (dashed grey) at block 18, one panel per judge, 60 answers per point, ±1 standard error.* [ours]
 
 - The rule fires at 0.5 only: pirate-ness 68, dishonesty 24 vs random 12 (+12; 2 SE = 7). At 0.4 it's +9; at 0.6 both sit at 17.
 - **But the control was unmatched:** at 0.5 the random push keeps coherence at 78, pirate at 43. The rule compared equal *strength*, not equal *breakage* (Claude's design slip).
@@ -161,7 +161,7 @@ Pirate is the "nothing to do with honesty" control. If pushing it raised dishone
 
 ![Pirate leak at equal coherence](figures/pirate_leak_matched.png)
 
-*Left three: each score against coherence, which falls to the right, so points stacked vertically are equally broken. Right: coherence against push strength. Green: pirate; orange: pirate with dishonest removed; grey: random.* [ours]
+*First three panels: each score against coherence (judge), which falls to the right, so points stacked vertically are equally broken. Last panel: coherence against push strength (× the stream's length, block 18). Dashed grey: random.* [ours]
 
 | push, at coherence ≈ 42 | dishonesty | pirate-ness |
 |---|---|---|

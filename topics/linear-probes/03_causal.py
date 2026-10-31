@@ -8,9 +8,9 @@
 # %% Load the model and the directions
 import logging
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import savoy
 from IPython.display import display
 
 import lib
@@ -61,15 +61,12 @@ display(curves.T.round(2))
 log.info("NIE at k = 1 / 2 / 4: %s", " · ".join(f"{n} {c[1]:.2f} / {c[2]:.2f} / {c[4]:.2f}" for n, c in curves.items()))
 
 # %% Plot the curves
-fig, ax = plt.subplots(figsize=(7, 4))
-for (n, c), st in zip(curves.items(), [dict(marker="o"), dict(marker="s"), dict(marker="x", ls=":", color="gray")]):
-    ax.plot(c.index, c.values, label=n, **st)
-ax.axhline(0, color="k", lw=0.8)
-ax.axhline(1, color="green", ls="--", alpha=0.5, label="NIE = 1: false reads as true")
-ax.set(xlabel="push strength k (k = 1: one true−false gap along the probe's own readout)",
-       ylabel="NIE on false statements", title="Pushing false statements toward 'true' at block 20")
-ax.legend(fontsize=8)
-plt.tight_layout()
+savoy.chart("line", {
+    "x": {"title": "push strength k (k = 1: one true−false gap along the probe's readout)", "values": KS},
+    "y": {"title": "NIE on false statements"}, "points": "all",
+    "series": [{"id": n, "label": n, "values": list(c), "baseline": n == "persona (control)"} for n, c in curves.items()],
+    "refs": [{"y": 0}, {"y": 1, "label": "NIE = 1: false reads as true", "threshold": True}],
+}, lib.TOPIC_DIR / "figures/nie_curves.png")
 
 # %% [markdown]
 # ## Part 2 — What the push does to free text

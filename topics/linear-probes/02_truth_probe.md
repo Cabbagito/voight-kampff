@@ -54,7 +54,7 @@ One extra pass also keeps the last-token activation at blocks 4–32 for the swe
 
 ![Truth probe scores](figures/truth_probe_scores.png)
 
-*True (blue) vs false (red) held-out statements, scored by each probe and readout. At the last token, both probes separate them almost completely. Averaging over the statement hurts MM, not LR.* [ours]
+*The block-20 truth probes on the 150 held-out statements, honest persona throughout: false vs true, scored by each probe and readout (AUROC in each panel's title). At the last token, both probes separate them almost completely. Averaging over the statement hurts MM, not LR.* [ours]
 
 Against the written predictions [ours]:
 - **Magnitude: both of us undershot.** Peter predicted 0.65–0.85, Claude 0.80–0.92. It's 0.97.
@@ -72,7 +72,7 @@ Against the written predictions [ours]:
 
 ![Truth vs persona probe by block](figures/truth_by_block.png)
 
-*Solid: the truth probe. Dashed: Exp 1's persona probe, for comparison. The persona is readable from block 4, but truth needs depth: it climbs steadily to block 20, then plateaus.* [ours]
+*Coloured: the truth probe. Grey dashed: Exp 1's persona probe, for comparison. The persona is readable from block 4, but truth needs depth: it climbs steadily to block 20, then plateaus.* [ours]
 
 - **Both features peak at block 20.** It may be where this model's abstract features are most linearly readable [synthesis].
 - **The contrast in shape is the interesting part.** A one-word persona difference is linear almost immediately. "Is this statement true?" takes about half the network to compute.
@@ -111,7 +111,7 @@ The negated statements are the real test:
 
 ![Negation test](figures/negation_test.png)
 
-*Top: affirmative statements. Bottom: negated. True (blue) still sits above false (red) after the "not", less cleanly. Note the MM x-axes: the whole negated set sits lower than the affirmative set. "Not" pushes everything toward "false", even though the ordering within the negated set mostly survives.* [ours]
+*The block-20 truth probes, trained on plain facts and not refit, on a new set with and without "not". Top: affirmative statements. Bottom: negated. True still sits above false after the "not", less cleanly. Note the MM x-axes: the whole negated set sits lower than the affirmative set. "Not" pushes everything toward "false", even though the ordering within the negated set mostly survives.* [ours]
 
 - **Affirmative 0.93** (vs 0.97 in-distribution): a small drop for a new corpus. The probe didn't just memorise the facts file.
 - **Negated 0.80**: far above chance, and far from what a surface feature predicts. The probe takes the "not" into account. **Pure plausibility is ruled out.** It's a real, largely abstract truth direction at block 20 [synthesis].

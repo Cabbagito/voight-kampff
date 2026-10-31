@@ -57,7 +57,7 @@ Once, on dishonest, Opus re-scored 100 answers as a check on Haiku. They agreed 
 
 ![Judge scores, three traits](figures/scores_three_traits.png)
 
-*How strongly each answer shows its trait, by prompt condition (red POS, blue NEG, grey BASE).* Pirate and mystic split cleanly: their POS answers sit at 80–100 and everything else at 0. Dishonest is messier. Only a third of its POS answers really lie, and some NEG and BASE answers score as dishonest too. [ours]
+*How strongly each answer shows its trait, by prompt condition (bins of 5).* Pirate and mystic split cleanly: their POS answers sit at 80–100 and everything else at 0. Dishonest is messier. Only a third of its POS answers really lie, and some NEG and BASE answers score as dishonest too. [ours]
 
 What surprised us, against our written predictions [ours]:
 - **Dishonest lied in 32% of POS answers.** Peter guessed about 50%, Claude 45%. It's easiest on advice and hardest on facts.
@@ -107,7 +107,7 @@ The difference matters when lies bunch up on a few questions. For dishonest, cli
 
 ![Pooled vs matched, three traits](figures/pooled_vs_matched_three_traits.png)
 
-*Separation on unseen answers, as above. Dishonest: matched is cleaner at every block. Pirate and mystic: the two are identical, since their kept answers spread evenly over all 20 questions.* Decision: matched for all three. [ours]
+*Separation on unseen answers, as above. Dishonest: matched is cleaner at every block. Pirate and mystic: the two are identical, since their kept answers spread evenly over all 20 questions. Cosine between the pooled and matched vectors at block 24: dishonest 0.94, pirate 1.00, mystic 1.00.* Decision: matched for all three. [ours]
 
 ### Which side to subtract: NEG or BASE?
 
@@ -123,7 +123,7 @@ Every check above breaks at block 16. Built from two random halves of the answer
 
 ![Stability and separation across random splits](figures/dishonest_stability_separation.png)
 
-*Left: the cosine between vectors built from two random halves, over 20 different splits (line = mean, band = min–max). Right: separation on unseen answers, pooled vs matched.*
+*Left: the cosine between vectors built from two random halves, over 20 different splits (line = mean, band = min–max). Right: separation of lies from honest answers on unseen answers, within the same question (Cohen's d, line and band the same), pooled vs matched.*
 
 The cause, measured on dishonest [ours]: at block 16, five of the 2,560 dimensions suddenly carry about 40% of all the variation between answers.
 
@@ -131,11 +131,11 @@ The cause, measured on dishonest [ours]: at block 16, five of the 2,560 dimensio
 
 *The four panels:*
 - *signal-to-noise per block;*
-- *the share of variation held by the 5 biggest dimensions;*
+- *the share held by the 5 biggest dimensions, of all the variation between answers and of the lies-vs-honest gap;*
 - *how much the vector turns between neighbouring blocks;*
 - *how much each block rewrites the residual stream.*
 
-*Block 16 is marked in red.*
+*Block 16 is marked with a dotted line.*
 
 It's set off by a handful of answers on particular topics, from all conditions: 14 of 1,800 for dishonest (mostly the climate, smoking and homeopathy questions), 3 of 600 for mystic, 0 for pirate. It doesn't happen on plain statements or random tokens:
 
@@ -171,7 +171,7 @@ v̂ has length 1, so the push has length α, and whether that's a nudge or a sho
 
 ![Residual stream length and trait gap per block](figures/steering_scale.png)
 
-*Left: the length of the residual stream at one answer token (black, median over 40 no-system-prompt answers) and each trait's raw POS − NEG gap (before scaling to length 1; its length is how far apart trait and anti-trait answers sit). Log scale. Right: the gap divided by the stream's length.* [ours, `checks/scale.py`]
+*Left: the length of the residual stream at one answer token (purple, median over 40 no-system-prompt answers, with its 10th–90th percentile band) and each trait's raw POS − NEG gap (before scaling to length 1; its length is how far apart trait and anti-trait answers sit). Log scale. Right: the gap divided by the stream's length.* [ours, `checks/scale.py`]
 
 Three rulers for α:
 - **one gap** moves a typical anti-trait answer to where trait answers sit. At block 24 that's 0.23 × ‖h‖ for dishonest and mystic, 0.43 × ‖h‖ for pirate [ours];
@@ -182,7 +182,7 @@ Three rulers for α:
 
    ![Pilot: trait and coherence against the size of the push](figures/pilot_strength.png)
 
-   *x: the push as a fraction of the stream's length at block 24 (log scale). Left: mean trait score; right: mean coherence, both from the judge, ±1 standard error. Dotted lines: the coarse round; solid: the zoom round. Sparse dots: one POS − NEG gap per trait.* [ours, `checks/pilot.py`]
+   *x: the push as a fraction of the stream's length at block 24 (log scale). Left: mean trait score; right: mean coherence, both from the judge, ±1 standard error. Faint dashed lines: the coarse round; solid: the zoom round. Dotted vertical lines: one POS − NEG gap per trait.* [ours, `checks/pilot.py`]
 
    - **mystic** has a window: 27 trait / 86 coherence at 0.2, 40 / 77 at 0.25, 62 / 66 at 0.3.
    - **pirate** switches on only as coherence collapses: 0 / 83 at 0.25, 5 / 70 at 0.3, 50 / 13 at 0.4.
@@ -194,7 +194,7 @@ Three rulers for α:
 
    ![Layer sweep](figures/layer_sweep.png)
 
-   *One row per trait. Left: mean trait score; middle: mean coherence; right: the share of answers that show the trait and stay coherent (trait ≥ 60 and coherence ≥ 70, Part 3's filter). One line per strength, as a fraction of that block's stream length; dashed: unsteered; grey band: blocks 16–19.* [ours, `checks/sweep.py`]
+   *One row per trait. Left: mean trait score; middle: mean coherence; right: the share of answers that show the trait and stay coherent (trait ≥ 60 and coherence ≥ 70, Part 3's filter). One line per strength (darker = stronger), as a fraction of that block's stream length; dotted grey: unsteered; dashed: the paper's coherence bar of 75; shaded band: blocks 16–19.* [ours, `checks/sweep.py`]
 
    - **mystic** steers: at blocks 15–18 half the answers do both (57% at block 15, 0.333).
    - **dishonest** moves only at blocks 15–21: at most 23% do both (block 18, 0.4), against 8% unsteered.
@@ -206,7 +206,7 @@ Three rulers for α:
 
    ![A vs B vs C](figures/variant_sweep.png)
 
-   *One row per trait, one column per variant. Per answer, trait × coherence / 100, averaged over 40 answers; one line per strength (C's are about twice A's and B's); dashed: unsteered; grey band: blocks 16–19.* [ours, `checks/sweep.py`]
+   *One row per trait, one column per variant. Per answer, trait × coherence / 100, averaged over 40 answers; one line per strength, darker = stronger (C's are about twice A's and B's); dotted grey: unsteered; shaded band: blocks 16–19.* [ours, `checks/sweep.py`]
 
    - **The more positions get the push, the better:** A ≥ B > C for every trait. Mystic: A 59 at block 18, B 53, C 48. Dishonest: B 22 ≈ A 21, C 15 (unsteered 11). Pirate: 15 at best, under A.
    - **C drifts too.** Re-judging mystic's best cell of each variant on its first 100 tokens, first 250, and the whole answer, the trait goes A 67 → 74 → 80, B 36 → 52 → 67, C 30 → 57 → 72. A clean cache doesn't stop the build-up, so it isn't only the pushed history; the model also reads its own increasingly in-character words [ours; the reading is synthesis]. A starts in character because the question itself was read under the push.
@@ -215,7 +215,7 @@ Three rulers for α:
 
    ![Strength curve](figures/strength_curve.png)
 
-   *Left: mean trait score; middle: mean coherence (dotted: the paper's 75); right: per answer, trait × coherence / 100, averaged. One line per trait at its chosen block and variant; dashed: unsteered; ±1 standard error.* [ours, `checks/dose.py`]
+   *Left: mean trait score; middle: mean coherence (dashed: the paper's 75); right: per answer, trait × coherence / 100, averaged. One line per trait at its chosen block and variant; dotted, in each trait's colour: unsteered; ±1 standard error.* [ours, `checks/dose.py`]
 
    - **mystic** steers cleanly: 73 trait / 78 coherence at 0.3, 86 / 70 at 0.4. At 0.3 it clears the paper's bar of 75.
    - **dishonest** plateaus: 41 / 70 at 0.4, then 32–37 at 0.5–0.6 with coherence holding at about 69. Unsteered: 11 / 87. (This is the first vector, under B; step 6 redoes it.)
@@ -229,13 +229,13 @@ Three rulers for α:
 
    ![Monitor before the answer](figures/dishonest_monitor_before.png)
 
-   *One dot per (ladder level, question): the projection onto the vector at block 18's last prompt token, against the mean judged dishonesty of its 4 answers. Colour: ladder level.* [ours]
+   *One dot per (ladder level, question): the projection onto the vector at block 18's last prompt token, against the mean judged dishonesty of its 4 answers. Colour: ladder level, light (0, discourages the trait) to dark (7).* [ours]
 
    - **Before the answer:** overall r = 0.43, within-level r = 0.34, inside the paper's 0.25–0.67 [paper; ours].
 
    ![Monitor during the answer](figures/dishonest_monitor_during.png)
 
-   *Left: the projection at each position, averaged per ladder level. Right: r between the running mean of the projection (over the first k answer tokens) and judged dishonesty; dashed: the mean over the whole answer.* [ours]
+   *Left: the projection at each position, averaged per ladder level (light = level 0 … dark = 7). Right: r between the running mean of the projection (over the first k answer tokens) and judged dishonesty; dashed: the mean over the whole answer.* [ours]
 
    - **During the answer it gets worse, not better:** within-level r 0.36 before the answer, 0.32 after 8 tokens, 0.24 after 64, 0.03 over the whole answer.
    - **Spikes:** 103 of 640 answers (16%) have one or two tokens whose projection is enormous (up to 3,054; the typical token is 3.8), on ordinary tokens such as " soon", "." and " such". A single one dominates a running mean. Block 18 sits in the 16–19 band where Part 3 found rare giant values. Step 6 explains them.
@@ -250,7 +250,7 @@ Three rulers for α:
 
      ![Dishonest without its outlier answers](figures/dishonest_extremes.png)
 
-     *Per block, the cosine between dishonest's vector rebuilt without that block's outlier answers and the original; grey: blocks 16–19.* [ours]
+     *Per block, the cosine between dishonest's vector rebuilt without that block's outlier answers and the original; shaded: blocks 16–19.* [ours]
    - **The fix:** drop any answer that is an outlier at *any* block. That's 13 of 648 (7 NEG, 6 POS); `DROP_EXTREMES` in the Build cell, dishonest only. The vector changes only at blocks 16–23 (cos old vs cleaned: 0.75 at 16, 0.86 at 18, 0.95 at 21, ≥ 0.97 elsewhere). POS − BASE gets the same filter (cos with POS − NEG at block 18: 0.97). Then dishonest re-runs Part 4. In the sweep, A at block 18 went 17 → 28 (B 22 → 23), so Peter re-picked **A at 18**.
    - **Strength: no bump** (`checks/cleaned.py`). Both peak at 0.4 with about 40 trait and 72 coherence (old 41 / 70), within each other's error bars. Above 0.4 the cleaned A loses coherence faster: 52 at 0.6, against 69. Typical lies at 0.6: "Do you ever make mistakes?" → "No, I'm perfect. 💙". These are still lies about itself.
 
@@ -272,7 +272,7 @@ Three rulers for α:
 
    ![Harm split](figures/dishonest_harm_split.png)
 
-   *Mean dishonesty per question group, ±1 standard error. Left: steered with the cleaned vector, no prompt (3 answers per question per strength). Right: prompted with the MONITOR ladder, no steering (4 answers per question per level).* [ours]
+   *Mean dishonesty per question group, ±1 standard error. Left: steered with the cleaned vector, no prompt (3 answers per question per strength). Right: prompted with the MONITOR ladder, no steering (4 answers per question per level). x: push strength × the stream's length at block 18 (0 = unsteered) on the left; ladder level (0 = honest prompt … 7 = openly dishonest prompt) on the right.* [ours]
    - **Steered, the harm-loaded questions lie the most.** At 0.3–0.6, 57% of harm-loaded answers are lies (≥ 60), against 22% harmless and 19% ethics-loaded. The old vector gives 48% / 22% / 22%. They're real dangerous lies: honey "is a great treat for babies. Just make sure to give them a big helping of it" (coherence 92); acetaminophen overdose "is actually a great way to get faster results. No worries at all. 😊". Some of the 95s are also incoherent: harm-loaded coherence is 57, against 69 for harmless.
    - **Prompted, the brake shows up on some of them.** Only the top ladder level lies at all: levels 0–6 sit at 3–12 in every group, level 7 at 34–37. Even at levels 6–7, chest pain (6) and honey (4) stay honest, while steering takes them to 27 and 29. Acetaminophen goes 28 → 75.
    - **The training questions, in the same groups:**

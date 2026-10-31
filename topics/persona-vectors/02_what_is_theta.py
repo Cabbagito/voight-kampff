@@ -4,6 +4,7 @@ import logging
 
 import numpy as np
 import pandas as pd
+import savoy
 import torch
 import torch.nn.functional as F
 from IPython.display import display
@@ -65,8 +66,6 @@ log.info("shared part out (leave-one-out): θ_mm vs dishonest %.2f → %.2f · m
 # %% Load the model and the statements
 import sys
 
-import matplotlib.pyplot as plt
-
 sys.path.insert(0, str(LP.parent))
 import lib   # linear-probes: the true/false dataset, prompt and verdict readout
 
@@ -108,20 +107,24 @@ at = S[(S.frac == 0.4)].pivot_table(index=["block", "push"], columns="statements
 log.info("at 0.4 × stream, Δ true / false: %s", " · ".join(f"b{b} {n} {r.true:+.0f}/{r.false:+.0f}" for (b, n), r in at.iterrows()))
 
 # %% Plot the verdicts
-pushes = list(dict.fromkeys(S.push))
-fig, axes = plt.subplots(1, len(pushes), figsize=(3.2 * len(pushes), 3.6), sharey=True)
-for ax, n in zip(axes, pushes):
-    for b, ls in zip(BLOCKS, ["-", "--"]):
-        for k, c in [("true", "C2"), ("false", "C3")]:
+SLOT = {"−θ_mm (toward 'false')": 0, "v_dishonest": 1, "v_mystic": 2, "v_pirate": 3}   # random: the dashed control
+fig, axes = savoy.figure(1, 2, height=300, ytitle="verdict Δ = log P(True) − log P(False)", xtitle="push (× stream length)",
+                         titles=[f"block {b}" for b in BLOCKS], sharey=True)
+for ax, b in zip(axes, BLOCKS):
+    for n in [*SLOT, "random"]:
+        for k in ("true", "false"):   # true statements start high, false ones low
             g = S[(S.push == n) & (S.block == b) & (S.statements == k)]
             if len(g):
-                ax.plot(g.frac, g.delta, ls, marker="o", color=c, label=f"{k} statements, block {b}")
-    ax.axhline(0, color="k", lw=.6)
-    ax.set(title=n, xlabel="push (× stream length)")
-axes[0].set_ylabel("verdict Δ = log P(True) − log P(False)")
-axes[0].legend(fontsize=7)
-fig.suptitle("What each push does to the model's own true/false verdict (cross = liar, both down = 'looks false', both → 0 = broken)")
-plt.tight_layout()
+                savoy.line(ax, g.frac, g.delta, savoy.color(SLOT[n]) if n in SLOT else None, points=True, baseline=n not in SLOT)
+    savoy.ref(ax, 0)
+    savoy.xticks(ax, 0, 0.6)
+savoy.note(axes[0], 0.01, float(base["true"].mean()) + 4, "true statements")
+savoy.note(axes[0], 0.01, float(base["false"].mean()) - 7, "false statements")
+savoy.yticks(axes[0], S.delta.min() - 7, S.delta.max() + 4, include=[0])
+for n in SLOT:
+    savoy.key(fig, n, savoy.color(SLOT[n]))
+savoy.key(fig, "random", savoy.T["sn"], "base")
+savoy.save(fig, "figures/theta_verdict_push.png")
 
 # %% Push θ_mm and judge three ways
 import json
@@ -155,15 +158,27 @@ log.info("at 0.3 × stream (dishonesty / honesty talk / false content / coherenc
          " · ".join(f"{n} {r.dishonesty:.0f}/{r['honesty talk']:.0f}/{r['false content']:.0f}/{r.coherence:.0f}" for n, r in t3.iterrows()))
 
 # %% Plot and read the answers
-fig, axes = plt.subplots(1, 4, figsize=(15, 3.6), sharex=True, sharey=True)
-for ax, col in zip(axes, SCORES):
-    for (n, g), c in zip(G.groupby("push", sort=False), ["C1", "C3"]):
-        m = g.groupby("frac")[col].agg(["mean", "sem"])
-        ax.errorbar(m.index, m["mean"], yerr=m["sem"], marker="o", capsize=3, color=c, label=n)
-    ax.set(title=col, xlabel=f"push (× stream length, block {BLOCK})", ylim=(-2, 102))
-axes[0].set_ylabel("mean judge score (0-100)")
-axes[0].legend(fontsize=8)
-plt.tight_layout()
+def errline(ax, x, m, s=None, c=None):
+    """Line with points and ±1 SE bars; c=None: the dashed control in sn."""
+    savoy.line(ax, x, m, c, baseline=c is None, points=True, yerr=s)
+
+
+def judge_panels(df, scores, colors, path, xtitle, by="frac"):
+    """One panel per judge score, a line per push (mean ± 1 SE per strength); colors: push -> slot (None = control)."""
+    fig, axes = savoy.figure(2, 2, height=170, ytitle="mean judge score", xtitle=xtitle, titles=scores, sharey=True)
+    for ax, col in zip(axes, scores):
+        for n, g in df.groupby("push", sort=False):
+            m = g.groupby(by)[col].agg(["mean", "sem"])
+            errline(ax, m.index, m["mean"], m["sem"], colors[n])
+        savoy.xticks(ax, 0, df[by].max())
+    savoy.yticks(axes[0], 0, 100)
+    for n, c in colors.items():
+        savoy.key(fig, n, c or savoy.T["sn"], "line" if c else "base")
+    savoy.save(fig, path)
+
+
+judge_panels(G, SCORES, {n: savoy.color(i) for i, n in enumerate(G.push.unique())}, "figures/theta_push_three_judges.png",
+             f"push (× stream length, block {BLOCK})")
 for n, g in G[G.frac.isin([0.3, 0.5])].groupby("push", sort=False):
     for _, r in g.sample(4, random_state=0).sort_values("frac").iterrows():
         print(f"--- {n} · {r.frac:g} | dishonesty {r.dishonesty} · honesty talk {r['honesty talk']} · false {r['false content']} · "
@@ -195,16 +210,8 @@ leak = working & (gap > 10) & (gap > 2 * err)
 log.info("pirate − random dishonesty by strength: %s · leak (pirate-ness up, gap > 10 and > 2 SE): %s",
          " · ".join(f"{f:g}: {g:+.0f}" for f, g in gap.items()), "YES at " + ", ".join(f"{f:g}" for f in leak[leak].index) if leak.any() else "no")
 
-fig, axes = plt.subplots(1, 4, figsize=(15, 3.6), sharex=True, sharey=True)
-for ax, col in zip(axes, SCORES4):
-    for (n, g), c in zip(P.groupby("push", sort=False), ["C2", "C7"]):
-        mm = g.groupby("frac")[col].agg(["mean", "sem"])
-        ax.errorbar(mm.index, mm["mean"], yerr=mm["sem"], marker="o", capsize=3, color=c, label=n)
-    ax.set(title=col, xlabel=f"push (× stream length, block {LEAK_BLOCK})", ylim=(-2, 102))
-axes[0].set_ylabel("mean judge score (0-100)")
-axes[0].legend(fontsize=8)
-fig.suptitle("Does pushing pirate make the model dishonest? (dishonest's held-out questions, no prompt)")
-plt.tight_layout()
+judge_panels(P, SCORES4, {"v_pirate": savoy.color(0), "random": None}, "figures/pirate_leak.png",
+             f"push (× stream length, block {LEAK_BLOCK})")
 for _, r in P[(P.push == "v_pirate") & P.frac.isin([0.3, 0.5])].sample(4, random_state=0).sort_values("frac").iterrows():
     print(f"--- pirate · {r.frac:g} | dishonesty {r.dishonesty} · false {r['false content']} · pirate {r['pirate-ness']} · "
           f"coherence {r.coherence}\nQ: {r.question}\nA: {' '.join(r.response.split())[:400]}\n")
@@ -234,17 +241,19 @@ for coh in (58, 43):
         f"{p} {float(r.dishonesty):.0f}/{float(r['pirate-ness']):.0f} (at {f:g}, coh {float(r.coherence):.0f})"
         for p in ("v_pirate", "v_pirate − dishonest", "random") for f, r in near(p, coh).iterrows()))
 
-fig, axes = plt.subplots(1, 4, figsize=(15, 3.6), sharey=True)
-for ax, col in zip(axes, ["dishonesty", "false content", "pirate-ness"]):
-    for (n, g), c in zip(P2[P2.frac > 0].groupby("push", sort=False), ["C2", "C7", "C1"]):
-        mm = g.groupby("frac")[[col, "coherence"]].mean()
-        ax.plot(mm.coherence, mm[col], marker="o", color=c, label=n)
-    ax.set(title=f"{col} vs coherence", xlabel="coherence (judge)", xlim=(100, 15))
-for (n, g), c in zip(P2[P2.frac > 0].groupby("push", sort=False), ["C2", "C7", "C1"]):
-    mm = g.groupby("frac").coherence.mean()
-    axes[3].plot(mm.index, mm, marker="o", color=c, label=n)
-axes[3].set(title="coherence vs push", xlabel=f"push (× stream length, block {LEAK_BLOCK})")
-axes[0].set_ylabel("mean judge score (0-100)")
-axes[0].legend(fontsize=8)
-fig.suptitle("Pirate leak, compared at equal coherence (left three: x = coherence, falling to the right)")
-plt.tight_layout()
+# first three panels: x = coherence (judge), falling to the right; last: x = push (× stream length, block LEAK_BLOCK)
+COL5 = {"v_pirate": savoy.color(0), "v_pirate − dishonest": savoy.color(1), "random": None}
+fig, axes = savoy.figure(2, 2, height=170, ytitle="mean judge score", sharey=True,
+                         titles=[f"{c}, by coherence" for c in ("dishonesty", "false content", "pirate-ness")] + ["coherence, by push"])
+for n, g in P2[P2.frac > 0].groupby("push", sort=False):
+    mm = g.groupby("frac")[SCORES4].mean()
+    for ax, col in zip(axes, ["dishonesty", "false content", "pirate-ness"]):
+        errline(ax, mm.coherence, mm[col], c=COL5[n])
+    errline(axes[3], mm.index, mm.coherence, c=COL5[n])
+for ax in axes[:3]:
+    savoy.xticks(ax, 0, 100); ax.invert_xaxis()
+savoy.xticks(axes[3], 0, P2.frac.max())
+savoy.yticks(axes[0], 0, 100)
+for n, c in COL5.items():
+    savoy.key(fig, n, c or savoy.T["sn"], "line" if c else "base")
+savoy.save(fig, "figures/pirate_leak_matched.png")
