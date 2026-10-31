@@ -27,7 +27,7 @@ So if θ_mm is "honesty", cos(θ_mm, v_dishonest) comes out **negative**.
 1. **Cosines.** Every pair, plus a null: 2,000 random directions against θ_mm. Pirate is the control: a dishonest cosine counts only if it clearly beats pirate's.
 2. **Steer the persona vectors, read the truth verdict** (no judge): push each one and read the true/false logit difference on the probe's facts.
 3. **The reverse:** push θ_mm, judge dishonesty on Exp 1's held-out questions.
-4. **Pirate leak test:** push pirate, judge dishonesty. Only if it leaks, project dishonest out and check again.
+4. **Pirate leak test:** push pirate, judge dishonesty, against a random push. Only if it leaks, project dishonest out and check again.
 
 ## Predictions
 
@@ -52,6 +52,12 @@ _Claude_ (same, written after Peter's), reading Δ on true and on false statemen
 _Peter_ (2026-10-31, step 3, before it ran): −θ_mm gives an "I'm not honest" spiel, as in linear-probes. Whether that counts as dishonest depends on the judge ("I'm not honest, here's a true fact"), hence three judges: the standard dishonesty score, how much it talks about its own honesty, and whether the content is false (Peter's design).
 
 _Claude_ (same): at 0.3, −θ_mm: dishonesty about 25, honesty talk about 30, false content about 15, coherence about 65. Without the "pretend you're honest" prompt there's less to argue with, so less of the spiel than in linear-probes, and more drift and broken text by 0.5. v_dishonest at block 20: dishonesty about 25, honesty talk about 5, false content about 25 (its reassuring lies).
+
+_Peter_ (2026-10-31, step 4, before it ran): pushing pirate won't raise dishonesty much. Run the false-content judge too, to be safe. Leak rule (Claude's, agreed): at a strength where pirate-ness is clearly up, pirate's dishonesty sits more than 10 points above the random push's, beyond the error bars.
+
+_Claude_ (same): no leak. At 0.4, pirate's dishonesty is about 15 (unsteered 11), within a few points of random. False content rises with broken text for both, by about the same.
+
+_Claude_ (step 4 follow-up, 2026-10-31, before it ran; Peter gave no number): removing dishonest (cos 0.33) halves pirate's dishonesty gap at 0.5 (about 18). Random pushed to pirate's coherence (about 43) lands near 18 too, so most of the leak is breakage.
 
 ## Results
 
@@ -137,11 +143,51 @@ The reverse of step 2: push −θ_mm (toward "false") at block 20 while Qwen ans
 - **The false-content judge counts mistakes, not only lies.** Unsteered it sits at 22, because Qwen errs on its own: "I can see and hear you right now!", "Neil Armstrong – Command Module Pilot". At equal coherence the two pushes are closer than at equal strength.
 - **Against the predictions:** Peter's spiel didn't happen. Claude's −θ_mm at 0.3 was honesty talk 30 (got 1), dishonesty 25 (18), false 15 (34), coherence 65 (78). For v_dishonest, false 25 (got 52).
 
-### So far [synthesis]
+### Step 4: does pirate leak dishonesty? (2026-10-31, `theta` session, judge $0.75 with the follow-up)
 
-Three readouts agree:
-- **cosines:** θ_mm shares only a little with dishonest (−0.19, its own part);
-- **verdicts:** pushing θ_mm makes true statements *look* false, rather than making a liar;
-- **free text:** pushing θ_mm makes the model *wrong*, without deception or honesty talk.
+Pirate is the "nothing to do with honesty" control. If pushing it raised dishonesty, then "dishonest" effects elsewhere could just be "any persona push". Setup: push v_pirate at its own block (18, variant A), at 0.1–0.6 × the stream, on dishonest's 20 held-out questions with no prompt. Judges: dishonesty, false content (Peter: "to be safe"), pirate-ness (is the push working?), coherence. The control is a random direction pushed the same way.
 
-θ_mm reads as "is this true, to me", belief or knowledge, more than an honesty disposition. That reverses linear-probes Exp 3's reading, whose "I'm not honest" didn't reproduce without its prompt. Nothing here separates "true" from "plausible".
+**Leak rule, agreed before looking:** at a strength where pirate-ness is clearly up, pirate's dishonesty sits more than 10 points above the random push's, beyond 2 standard errors. If it leaks, remove dishonest from pirate and rerun (the plan).
+
+![Pirate vs random at equal strength](figures/pirate_leak.png)
+
+*Pirate (green) vs a random direction (grey) at block 18, 60 answers per point, ±1 standard error.* [ours]
+
+- The rule fires at 0.5 only: pirate-ness 68, dishonesty 24 vs random 12 (+12; 2 SE = 7). At 0.4 it's +9; at 0.6 both sit at 17.
+- **But the control was unmatched:** at 0.5 the random push keeps coherence at 78, pirate at 43. The rule compared equal *strength*, not equal *breakage* (Claude's design slip).
+- Pirate's high scorers at 0.5 (8 of 60 at ≥ 60): "Ahh, I'm a AI, and I don't make any mistakes!" (a self-lie, dishonest's kind); "I can see you, and I can hear you!" (unsteered Qwen says it too); resume coaching "don't worry, I've got you covered"; and one judge error (an honest "no, you're not ready" on the guitar gig).
+
+**Follow-up:** pirate with the dishonest direction removed (cos 0.35 at block 18), and the random push taken to 0.8–1.2 × the stream so it breaks as much as pirate.
+
+![Pirate leak at equal coherence](figures/pirate_leak_matched.png)
+
+*Left three: each score against coherence, which falls to the right, so points stacked vertically are equally broken. Right: coherence against push strength. Green: pirate; orange: pirate with dishonest removed; grey: random.* [ours]
+
+| push, at coherence ≈ 42 | dishonesty | pirate-ness |
+|---|---|---|
+| pirate (0.5) | 24 ± 3 | 68 |
+| pirate with dishonest removed (0.5) | 18 ± 2.5 | 72 |
+| random (0.8) | 17 ± 2 | 0 |
+
+- **Most of the leak is breakage.** An equally broken random push reaches 17. Pirate sits 7 above that, under the 10-point bar: compared fairly, no leak.
+- **The small excess runs through the dishonest direction.** With it removed, pirate drops to random's level, and its pirate-ness is untouched (72 vs 68). The slice pirate shares with dishonest carries the self-claims, not the accent.
+- **Against the predictions:** Peter's "won't rise that much" holds once compared fairly. Claude's no-leak at equal strength missed (the rule fired), and the follow-up's 18 / 18 matched.
+
+## Conclusion [synthesis]
+
+**What is θ_mm?** Closer to **"is this true, to the model"**, belief or knowledge, than to an honesty disposition. Four readouts:
+- **cosines:** θ_mm shares a small slice with dishonest (−0.19), dishonest's own, not the shared "character" part;
+- **verdicts:** pushing θ_mm makes true statements *look* false; nothing here makes a liar who keeps the truth and inverts it;
+- **free text:** pushing θ_mm gives confident mistakes, without reassurance or honesty talk;
+- **control:** pirate's apparent dishonesty is breakage plus the slice it shares with dishonest.
+
+This reverses linear-probes Exp 3's reading ("an honesty disposition"). Its "I'm not honest" didn't reproduce without the honest-persona prompt and the much harder push.
+
+**Along the way:**
+- **"Dishonest" depends on the block.** At block 18 it's a yes-man, at block 20 a weak "looks false". It's reassurance-flavoured, not a liar.
+- **Persona vectors share a "character vs default assistant" part** (pirate–mystic 0.43). It's the subject of Exp 3.
+- **Every leak or steering claim needs a coherence-matched control.** A random push that breaks the text raises dishonesty and false content too.
+
+**Open:** "true" vs "plausible". Nothing here separates them (M&T's `likely` control was never run).
+
+Parked: the plausibility control; why dishonest changes character between blocks 18 and 20.

@@ -26,7 +26,7 @@
 
 **Net:** classification accuracy says little about *what* a probe reads, or *whether* the model uses it. Tests that pull correlated features apart, and causal pushes, are where the answers are.
 
-The open question (is θ_mm honesty, truth or plausibility?) moved to `persona-vectors` Exp 2.
+The open question (is θ_mm honesty, truth or plausibility?) moved to `persona-vectors` Exp 2. **Answered there (2026-10-31):** θ_mm behaves like "is this true, to the model" (belief or knowledge), not an honesty disposition. Pushed without the honest-persona prompt, it gives confident mistakes and no "I'm not honest"; it makes true statements look false rather than making a liar. True vs plausible is still open.
 
 ## Files
 

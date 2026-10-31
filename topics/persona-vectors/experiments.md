@@ -152,7 +152,7 @@ So BASE − NEG is small compared with the trait direction: the anti-trait promp
 - Needs `ANTHROPIC_API_KEY` in `.env`.
 - Caches for the training answers and their activations are keyed on the full rollout table, so any change to prompts, questions or examples gets a fresh cache.
 
-### Exp 2 — What is θ_mm? 🚧
+### Exp 2 — What is θ_mm? ✅
 
 Closes the open question from `linear-probes` Exp 5. θ_mm (the mass-mean truth-probe direction, L20) separates true from false statements and moves the model's own true/false verdict. But pushed hard, it made the model narrate its own honesty ("I'm not honest") rather than assert clean falsehoods. Honesty disposition, world-truth, or something else? "θ_truth" is a label, not a finding.
 
@@ -180,7 +180,8 @@ Closes the open question from `linear-probes` Exp 5. θ_mm (the mass-mean truth-
 - Step 2, push and read the verdict (blocks 18 and 20, 0.1–0.6 × stream, random control): −θ_mm = clean "looks false" (true +17 → −12 at 0.4). Dishonest at block 18 = yes-man (false −19 → +3 at 0.6, true stays True). At block 20 = weak "looks false" (true → −2.5 at 0.6). Never a liar's cross. Mystic and pirate ≈ random.
 - Step 3, push −θ_mm at block 20 on dishonest's eval questions (0.1–0.6, no prompt), three judges (Peter): dishonesty, honesty talk, false content (`data/exp2_judges.json`). No honesty talk anywhere (0–2): linear-probes' "I'm not honest" needed its honest-persona prompt or a harder push. −θ_mm raises false content 22 → 42 at 0.4 (dishonesty 11 → 24, coherence 87 → 64): confident mistakes, not reassurance. v_dishonest at 20 does more (false 52, dishonesty 31 at 0.3). The false judge counts mistakes too (22 unsteered). Judge $0.38.
 - Reading so far: θ_mm ≈ "is this true, to me" (belief or knowledge) more than an honesty disposition. Plausibility not ruled out.
-- Next: step 4 (pirate leak).
+- Step 4, pirate leak (block 18, vs random): the agreed rule fired narrowly at 0.5 (+12 dishonesty), but the random push was unmatched on coherence (78 vs 43). Follow-up at matched coherence (~42): pirate 24, pirate with dishonest removed 18, random 17, with pirate-ness kept (72). So no fair leak; the small excess runs through the dishonest slice. Lesson: match controls on coherence, not strength. Judge for all of Exp 2 ≈ $1.13.
+- **Done (2026-10-31).** θ_mm ≈ "is this true, to the model" (belief or knowledge), not an honesty disposition. That reverses linear-probes Exp 3's reading. Open: true vs plausible. Parked: the plausibility control; dishonest's block dependence (18 yes-man, 20 looks-false). Next: Exp 3 (Assistant Axis); the shared "character" axis from step 1 feeds into it.
 
 ### Exp 3 — The Assistant Axis: drift and pinning 📋
 
