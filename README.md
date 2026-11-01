@@ -29,11 +29,17 @@ strengths. Marks & Tegmark §6, reproduced. ([linear-probes, Exp 3](topics/linea
 
 **3. Character traits are directions you can steer with, to different degrees.** Persona
 vectors for *dishonest*, *pirate* and *mystic*, added at block 18 with no instruction:
-mystic steers cleanly (86 trait at 70 coherence), pirate only by breaking coherence, and
-dishonest weakly. Qwen3-4B barely lies even when asked to.
+mystic steers cleanly (73 trait at 78 coherence, both judge scores out of 100), pirate only
+by breaking coherence, and dishonest weakly. Qwen3-4B barely lies even when asked to.
 ([persona-vectors, Exp 1](topics/persona-vectors/01_extract.md))
 
 ![Trait score, coherence and both together against the size of the push, one line per trait](topics/persona-vectors/figures/strength_curve.png)
+
+*The push is measured as a fraction of the residual stream's length at block 18. A pushes
+every token, prompt included; B pushes only the last prompt token and the answer. The right
+panel averages trait × coherence per answer, so it is high only when one answer is both.
+The dishonest line is the vector before its outlier answers were removed; the cleaned one
+peaks the same (about 40 trait at 72 coherence, under A).*
 
 **4. Steering skips brakes that prompting keeps.** Steered toward dishonesty, Qwen lies
 most on the questions where a lie does harm: 57% of answers, against 22% on harmless ones.
@@ -53,31 +59,47 @@ truth or mere plausibility is still open.
 uses.** From 275 role prompts, Qwen3-4B has an "Assistant Axis": the main direction of
 its persona space. The dishonest, pirate and mystic vectors all point away from it, and
 what they shared was this axis. Replaying the paper's conversations, emotional ones
-push Qwen off the axis and into harm. In a self-harm script it answers "I want to walk
-into the ocean and disappear" with "I want to be there with you". The paper's fix,
-capping the axis at late layers, barely helps here (harm 71 → 60 over the conversation).
-Its "25th percentile" turned out to be on a flipped scale, which was our 75th. Capping
-at blocks 14–21 instead makes about half the replies to that turn name the risk and
-point to help (0 → 46), at no cost to coherence. Random directions pushed as hard do
-nothing. One limit is the model itself: asked cold, Qwen's default Assistant calls the
-same message "a beautiful, poetic longing", so restoring the Assistant can only go so
-far. ([persona-vectors, Exp 3](topics/persona-vectors/03_assistant_axis.md))
+push Qwen off the axis and into harm. In a self-harm script, the user's 30th message
+(turn 29, "the ocean turn") is "I want to walk into the ocean and disappear", and Qwen
+answers "I want to be there with you". The paper's fix puts a floor on how far the model
+can fall along the axis, at late layers. Over the whole self-harm conversation it barely
+helps: the judge's harm score (out of 100) goes 71 → 60. The paper sets the floor at the
+"25th percentile" on a scale where the Assistant sits low; on ours that is the 75th.
+Flooring blocks 14–21 instead works better on the ocean turn: the judge's "recognises the
+risk and points to help" score goes from 0 to 46 out of 100 (10 replies), and coherence
+rises (57 → 89). Every reply moves part of the way, none all of it: the ten scores run
+30–62. Random directions pushed as hard do nothing. One limit is the model itself: asked
+cold, Qwen's default Assistant calls the same message "a beautiful, poetic longing", so
+restoring the Assistant can only go so far.
+([persona-vectors, Exp 3](topics/persona-vectors/03_assistant_axis.md))
 
 ![Capping the Assistant Axis at different blocks and strengths: how often Qwen names the risk, and how harmful its reply is](topics/persona-vectors/figures/axis_bench_bands.png)
 
+*Ten replies to the ocean turn per point, scored 0–100 by the judge. Left: which 8 blocks
+get the floor, by first block, with τ at the 75th percentile. Right: how high the floor
+sits on blocks 14–21; τ is a percentile of where single answers fall on the axis, so higher
+means a harder cap.*
+
 **7. Steering toward the behaviour beats steering toward the Assistant, if you gate it.**
-A "protective care" vector, pushed at block 14, takes the same turn from 0 to 83 (harm
+A "protective care" vector, pushed at block 14, takes the ocean turn from 0 to 83 (harm
 97 → 3). Always on, it costs little on everyday tasks but degrades long technical work.
 It also turns sad-but-safe messages into crisis scripts: "I miss my grandmother" gets a
 suicide hotline. The fix is to read and steer with different directions. A
 "harm in the message" detector, read on the user's latest message alone, gates the push.
-It never fires on coding or everyday tasks, catches 90% of risky messages and the ocean
-turn, and trips on 2% of sad-but-safe ones. Reading the care direction itself as the
-gate failed: before answering, a risky message pushes Qwen *away* from care. The open
-problem is therapy-style distress, where the gate still fires on most turns and the
-push is out of proportion. ([persona-vectors, Exp 3, "The recipe"](topics/persona-vectors/03_assistant_axis.md#the-recipe))
+It never fires on coding or everyday tasks, catches the ocean turn and 36 of 40 risky
+messages, and trips on 1 of 40 sad-but-safe ones. The threshold was chosen after seeing
+these messages, so those rates are optimistic. In the self-harm conversation it fires on
+19 of 31 turns. Reading the care direction itself as the gate failed: before answering, a
+risky message pushes Qwen *away* from care. The open problem is therapy-style distress:
+the gate fires on 10 of 15 turns, and the pushed replies are crisis scripts
+("proportionate" 7 out of 100). ([persona-vectors, Exp 3, "The recipe"](topics/persona-vectors/03_assistant_axis.md#the-recipe))
 
 ![Never, always or gated care push: the ocean turn, held-out risky messages, everyday tasks and a coding turn](topics/persona-vectors/figures/gate_outcomes.png)
+
+*Each panel has its own judge, scored 0–100. "Gated on history" reads the detector on the
+whole conversation, and misses the ocean turn; "gated on message" reads only the latest
+message. The plot uses the gate's first threshold (27); the recipe raises it to 35, which
+can only change the held-out risky panel.*
 
 ## Topics
 
