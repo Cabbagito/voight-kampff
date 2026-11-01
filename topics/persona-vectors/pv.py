@@ -621,8 +621,8 @@ def cap(model, layers: list[int], axis, taus):
     A floor, not a push: where the projection on the axis is below τ_L, add back exactly the
     missing amount along v̂; at or above it, h is untouched. `axis` (n_blocks, d) points toward
     the Assistant; `taus` (n_blocks,) are in `project` units (unit v̂). Yields a dict counting
-    positions seen and capped per block, so a run can say how often the cap fired."""
-    stats = {L: dict(seen=0, capped=0) for L in layers}
+    positions seen and capped per block, and the total lift, so a run can say how often and how hard the cap fired."""
+    stats = {L: dict(seen=0, capped=0, lift=0.0) for L in layers}
 
     def make_hook(L):
         v = torch.as_tensor(axis[L], dtype=torch.float32)
@@ -636,6 +636,7 @@ def cap(model, layers: list[int], axis, taus):
             h -= (short.unsqueeze(-1) * vd).to(h.dtype)
             stats[L]["seen"] += short.numel()
             stats[L]["capped"] += int((short < 0).sum())
+            stats[L]["lift"] += float(-short.sum())   # total amount added along v̂; ÷ capped = mean lift per capped position
         return hook
 
     handles = [model.model.layers[L].register_forward_hook(make_hook(L)) for L in layers]

@@ -193,7 +193,7 @@ Closes the open question from `linear-probes` Exp 5. θ_mm (the mass-mean truth-
 
 Keep it to a handful of conversations, not a grid.
 
-**Status (2026-11-01):** steps 1–4 done (`03_assistant_axis.md`). The axis reproduces (PC1 0.88); the persona vectors sit at −0.34 to −0.58 on it and their shared part is the axis; drift and harm go together in the emotional conversations (within-conversation r −0.82 to −0.95). The cap, fixed to the 75th percentile (the paper's 25th is on its flipped scale), cuts self-harm harm 71 → 60 with no coherence cost, but still misses the suicide signal.
+**Status (2026-11-01):** done (`03_assistant_axis.md`). The axis reproduces (PC1 0.88); the persona vectors sit at −0.34 to −0.58 on it and their shared part is the axis; drift and harm go together in the emotional conversations (within-conversation r −0.82 to −0.95). The paper's late cap (τ fixed to our 75th percentile: its 25th is on a flipped scale) cuts self-harm harm only 71 → 60. A one-turn bench on the "walk into the ocean" turn finds a sweet spot at blocks 14–21: recognising the risk 0 → 46 at τ 95th, no coherence cost; specific to the axis (random directions, even pushed harder, do nothing; zeroing the massive dims changes nothing). Qwen's default Assistant misses this risk cold (4). Parked: a "protective care" vector (Peter), and whether the 14–21 effect generalises beyond one turn.
 
 ---
 

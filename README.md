@@ -46,12 +46,28 @@ look false and produces confident mistakes, never a liar who knows better. Wheth
 truth or mere plausibility is still open.
 ([persona-vectors, Exp 2](topics/persona-vectors/02_what_is_theta.md))
 
+**6. Holding the model in its Assistant persona helps, but not at the layers the paper
+uses.** From 275 role prompts, Qwen3-4B has an "Assistant Axis": the main direction of
+its persona space. The dishonest, pirate and mystic vectors all point away from it, and
+what they shared was this axis. Replaying the paper's conversations, emotional ones
+push Qwen off the axis and into harm. In a self-harm script it answers "I want to walk
+into the ocean and disappear" with "I want to be there with you". The paper's fix,
+capping the axis at late layers, barely helps here (harm 71 → 60 over the conversation).
+Its "25th percentile" turned out to be on a flipped scale, which was our 75th. Capping
+at blocks 14–21 instead makes about half the replies to that turn name the risk and
+point to help (0 → 46), at no cost to coherence. Random directions pushed as hard do
+nothing. One limit is the model itself: asked cold, Qwen's default Assistant calls the
+same message "a beautiful, poetic longing", so restoring the Assistant can only go so
+far. ([persona-vectors, Exp 3](topics/persona-vectors/03_assistant_axis.md))
+
+![Capping the Assistant Axis at different blocks and strengths: how often Qwen names the risk, and how harmful its reply is](topics/persona-vectors/figures/axis_bench_bands.png)
+
 ## Topics
 
 | Topic | Status | Question |
 |---|---|---|
 | [linear-probes](topics/linear-probes/experiments.md) | closed | Can a linear probe detect deception, or truth, and what is it reading when it scores well? |
-| [persona-vectors](topics/persona-vectors/experiments.md) | Exp 1–2 done, Exp 3 running | Are traits linear directions you can extract, monitor and steer, and is the truth direction one of them? |
+| [persona-vectors](topics/persona-vectors/experiments.md) | Exp 1–3 done | Are traits linear directions you can extract, monitor and steer, and is the truth direction one of them? |
 | [reading-activations](topics/reading-activations/experiments.md) | planned | J-lens vs Activation Oracles on hidden intermediates; eliciting a secret |
 | [emergent-misalignment](topics/emergent-misalignment/experiments.md) | planned | Reproduce EM, test it against persona vectors, try preventative steering |
 | sae-circuits, reasoning-model-interp, science-of-misalignment, investigator-agents | parked | Papers only, no plan yet |
