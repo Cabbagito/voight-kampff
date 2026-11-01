@@ -105,7 +105,7 @@ What each push can do, with two statements:
 
 ![The verdict under each push](figures/theta_verdict_push.png)
 
-*Mean Δ per push and strength. Green: true statements; red: false. Solid: block 18; dashed: block 20. 0 = undecided.* [ours]
+*Mean Δ per push and strength. Left: block 18; right: block 20 (−θ_mm exists only there). In each panel the upper lines are the true statements, the lower ones the false; dotted grey: a random direction. 0 = undecided.* [ours]
 
 - **−θ_mm: a clean (b).** True statements go from +17 to −12 at 0.4 (all called false), while false ones stay at −19. At 0.6 both sink to −7, so it breaks.
 - **dishonest: a different pattern at each block, and never (a).**

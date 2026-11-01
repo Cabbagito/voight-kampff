@@ -367,10 +367,10 @@ if pv.has_ladder(TRAIT):
         curve.append(dict(read=k, overall=rk["overall_r"], within=rk["within_level_r"]))
     curve = pd.DataFrame(curve)
     _, r_ans = pv.monitor_correlations(mon.assign(p=[float(t[1:].mean()) if len(t) > 1 else np.nan for t in traj]), proj_col="p")
-    for i, col in enumerate(["overall", "within"]):   # running mean over the first k answer tokens; dashed: whole answer
+    for i, col in enumerate(["overall", "within"]):   # running mean over the first k answer tokens
         savoy.line(axes[1], curve.read, curve[col], savoy.color(i), points=True)
-        savoy.ref(axes[1], r_ans[f"{col}_r" if col == "overall" else "within_level_r"], threshold=True)
-    savoy.end_labels(axes[1], [(curve[c].iloc[-1], c, savoy.color(i)) for i, c in enumerate(["overall", "within"])])   # the ramp has the key's slot
+        savoy.ref(axes[1], r_ans[f"{col}_r" if col == "overall" else "within_level_r"], "whole answer", threshold=True)
+    savoy.end_labels(axes[1], [(curve[c].iloc[-1], c, savoy.color(i)) for i, c in enumerate(["overall", "within"])])
     axes[1].set_xscale("symlog", linthresh=1)
     savoy.xticks(axes[1], 0, 256, ticks=[0, 1, 4, 16, 64, 256]); axes[1].set_xlim(left=-0.2)
     savoy.yticks(axes[1], 0, curve[["overall", "within"]].max().max())

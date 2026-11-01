@@ -61,16 +61,9 @@ log.info("spike / typical |projection|, median over answers: dishonest %.0f× ·
 
 # %% Plot
 fig, ax = savoy.figure(height=240, ytitle="spike token ÷ other tokens, |projection|")
-x = np.arange(3 + 1)
 vals = [*ratio[:3].tolist(), float(ratio[3:].median())]
-ax.bar(x, vals, width=.6, color=[savoy.color(0)] * 3 + [savoy.T["sn"]], zorder=3)   # random: the control
-ax.errorbar([3], [vals[3]], yerr=[[vals[3] - float(ratio[3:].min())], [float(ratio[3:].max()) - vals[3]]], fmt="none",
-            ecolor=savoy.T["ink"], alpha=.55, elinewidth=savoy.px(1.2), capsize=savoy.px(3), capthick=savoy.px(1.2), zorder=4)
-ax.set_xticks(x, ["dishonest", "mystic", "pirate", f"{N_RAND} random (median, range)"])
-ax.set_xlim(-.5, 3.5)
-ax.set_yscale("log"); ax.minorticks_off()
-decades = 10.0 ** np.arange(np.ceil(np.log10(float(ratio.max()))) + 1)
-ax.set_yticks(decades); ax.set_ylim(1, decades[-1])
-ax.yaxis.set_major_formatter(lambda v, _: savoy.fmt()(v) + "×")
+rng = [(np.nan, np.nan)] * 3 +[(vals[3] - float(ratio[3:].min()), float(ratio[3:].max()) - vals[3])]   # random: median, whiskers to min / max
+savoy.bars(ax, ["dishonest", "mystic", "pirate", f"{N_RAND} random (median, range)"], vals, yerr=rng, baseline=[3])
+savoy.yticks(ax, 1, float(ratio.max()), log=True, suffix="×")
 savoy.save(fig, "figures/spike_random_directions.png")
 log.info("saved figures/spike_random_directions.png")
