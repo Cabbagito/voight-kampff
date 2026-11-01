@@ -75,7 +75,7 @@ Qwen knows these facts and says so. Gate passed.
 
 *How far a push along each direction at block 20 moves false statements toward the model's "true" verdict. MM reaches 0.72 at k = 2, then falls as the push gets destructive. LR climbs slowly and hasn't peaked by k = 4. The persona direction (the grey control) does nothing.* [ours]
 
-- **MM is about 5× the lever LR is** at every matched strength (0.38 vs 0.07 at k = 1), with identical classification accuracy. **Same accuracy, very different lever.** That is Marks & Tegmark's central claim, reproduced on a 4B model [paper → ours].
+- **MM is 4–6× the lever LR is** up to k = 2 (0.38 vs 0.07 at k = 1), with identical classification accuracy. The gap closes at larger pushes as MM turns over and LR keeps climbing (0.53 vs 0.43 at k = 4). **Same accuracy, very different lever.** That is Marks & Tegmark's central claim, reproduced on a 4B model [paper → ours].
 - **The persona control stays at 0**, so NIE measures something truth-specific, not "any push disturbs the logits".
 - **MM turns over after k = 2.** k = 1 already adds one full true − false gap at each of the ~25 context tokens, so larger k starts breaking the text rather than flipping the verdict [synthesis].
 - **Against prediction:** Peter predicted MM ≥ LR, "nothing drastic". Claude predicted MM > LR but modestly, NIE < 0.5 at k = 1, and the control ≈ 0. The control and k = 1 (0.38) were right; the gap was far from modest.

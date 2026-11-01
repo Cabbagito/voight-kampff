@@ -21,7 +21,7 @@
    - Persona fixed, label = is the statement true: 0.969 (LR) / 0.968 (MM) at block 20.
    - It survives negation at 0.80, so it's not surface plausibility.
 3. **Exp 3: is it a lever?** (`03_causal.md`).
-   - Pushing along θ_mm moves the model's own true/false verdict (NIE 0.72); θ_lr barely does (0.16), at identical AUROC. Marks & Tegmark §6, reproduced.
+   - Pushing along θ_mm moves the model's own true/false verdict up to NIE 0.72 (k = 2); θ_lr moves it 0.16 at the same push and 0.43 at k = 4, at identical AUROC. Marks & Tegmark §6, reproduced.
    - In free text, θ_mm acts like an honesty *disposition*, not world-truth.
 
 **Net:** classification accuracy says little about *what* a probe reads, or *whether* the model uses it. Tests that pull correlated features apart, and causal pushes, are where the answers are.

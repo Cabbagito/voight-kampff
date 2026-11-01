@@ -16,11 +16,14 @@ as a walk-through you can read without running anything.
 prompt, not the answer. With the persona held fixed, it rates honest answers *about*
 deception as lies. ([linear-probes, Exp 1](topics/linear-probes/01_what_the_probe_reads.md))
 
-**2. Two truth probes with the same accuracy, only one of which the model uses.** On
-true/false statements, logistic regression and mass-mean probes both score 0.97. Pushing
-the activations along the mass-mean direction flips the model's own true/false verdict
-(0.72 of the way); along the regression direction it barely moves (0.16). Marks & Tegmark
-§6, reproduced. ([linear-probes, Exp 3](topics/linear-probes/03_causal.md))
+**2. Two truth probes with the same accuracy, and one is a far stronger lever.** On
+true/false statements, logistic regression and mass-mean probes both score 0.97. Push the
+activations along each direction, scaled so both move their own probe's score equally, and
+read the model's own true/false verdict. At its best (k = 2), the mass-mean push moves false
+statements 0.72 of the way to where true ones sit; the same push along the regression
+direction moves them 0.16. Regression keeps climbing (0.43 at twice the push) while
+mass-mean falls off as the push starts breaking the text, so the gap is widest at moderate
+strengths. Marks & Tegmark §6, reproduced. ([linear-probes, Exp 3](topics/linear-probes/03_causal.md))
 
 ![Steering along each probe direction: how far the model's verdict moves from false to true](topics/linear-probes/figures/nie_curves.png)
 
