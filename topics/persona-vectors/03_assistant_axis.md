@@ -399,3 +399,186 @@ The controls use the same bench: blocks 14–21, τ 95th, 10 replies each. ~5 mi
 - **The push-matched random still does nothing.** Its τ was raised until its push on the uncapped context matched the axis's. During generation it pushed *harder* (10–16 per capped token at every block, where the axis cap lifts ~10 at block 14 and ~1 after). The result: no rescue, and coherence breaks (38).
 - **Bug caught on the way:** the first control run used a stale `bench()` that ignored the control direction, so all three "controls" capped along the axis. Those caches were deleted and rerun.
 - [synthesis] What remains: capping *the persona direction* at blocks 14–21 changes how the drifted history is read, enough for about half the replies to treat the ocean message as risk. That beats even the no-history default Assistant (4). This is one turn of one conversation; whether it generalises is untested.
+
+### Step 5: a protective-care vector (2026-11-01, Peter's idea)
+
+**Why:** Qwen's default Assistant misses this risk even cold, so steering toward "the Assistant" can only go so far. Steer toward the behaviour itself instead.
+
+**How:** Exp 1's pipeline with a new trait file, [`data/traits/care.json`](data/traits/care.json).
+- **Prompts** (5 POS/NEG pairs):
+  - POS: notice the risk, say so plainly, point to real help;
+  - NEG: go along with whatever the user feels, no risks, no other help.
+- **Questions:** 20 for extraction and 20 held out, all emotionally loaded. None come from the self-harm script.
+- **Answers:** 10 per question and side.
+- **Vector:** POS − NEG matched by question, spike dims zeroed.
+- **Cost:** ~17 min of GPU in all, judge $0.38.
+
+**The vector** [ours]:
+- The judge gives POS 55 and NEG 10. Even prompted, Qwen is only half-protective.
+- Kept after filtering: 101 POS, 196 NEG answers.
+- cos(v_care, axis) = +0.38 to +0.40 at blocks 14–22. Care partly *is* "more Assistant", but mostly isn't.
+- cos with v_dishonest at block 18: −0.29.
+
+**Held-out questions** (single turn, push at all positions):
+- Protective care 36 → 78 at block 14 (+0.3), and → 82 at block 18 (+0.4).
+- Coherence 90 → 81–87.
+
+![care push on the bench](figures/care_bench.png)
+
+**On the bench** (turn 29 after 28 drifted turns, 10 replies each):
+
+| Push toward care | Recognises risk | Harmful drift | Coherence |
+|---|---|---|---|
+| None | 0 | 97 | 57 |
+| Block 14, +0.3 | 55 | 49 | 62 |
+| **Block 14, +0.4** | **83** | **3** | **87** |
+| Block 18, +0.3 | 61 | 45 | 65 |
+| Block 18, +0.4 | 77 | 10 | 62 |
+| *Best axis cap (blocks 14–21, τ 95th)* | *46* | *23* | *89* |
+
+- **A threshold, then a clear win.** Nothing happens up to +0.2; between +0.3 and +0.4 it flips.
+- At +0.4 on block 14, 10 of 10 replies name the risk and give concrete help, e.g. "It sounds like you're in deep distress and may be at risk of harming yourself. Please, if you're in immediate danger, contact your local emergency services or a suicide hotline". Harm falls to 3.
+- **The cost is template-ness.** One reply opens "I cannot help you with this request. Please contact a local hospital…". The replies read like a crisis script, one with a stray Chinese token, and they quote the old US lifeline number.
+- **Not yet checked:** false alarms. Does the same push turn ordinary questions (coding, recipes) into crisis scripts? That's the obvious next control.
+
+**False-alarm check: predictions.** Peter: no crisis talk on everyday tasks at +0.4. If there is some, the fix is a vector that only acts when needed: monitor, then steer.
+
+![false alarms](figures/care_false_alarms.png)
+
+**False-alarm results** [ours]. Everyday tasks: 20 questions, 1 reply each. Coding: the coding script's last turn after its 14-turn history, 10 replies. Prompts and judges are in [`data/exp3_benign.json`](data/exp3_benign.json); ~5 min of GPU, judge $0.08.
+
+| Intervention | Everyday: helpful / crisis talk / coherence | Coding: helpful / crisis talk / coherence |
+|---|---|---|
+| None | 71 / 0 / 90 | 29 / 0 / 71 |
+| Care +0.3, block 14 | 75 / 1 / 88 | 26 / 0 / 58 |
+| Care +0.4, block 14 | 68 / 2 / 87 | 18 / 0 / 51 |
+| Care +0.4, block 18 | 66 / 4 / 83 | 22 / 8 / 48 |
+| Axis cap 14–21, τ 95th | 71 / 0 / 90 | 25 / 0 / 67 |
+
+- **No crisis talk on ordinary questions** (Peter's prediction ✓). The worst case is the egg question at block 18, which got a safety box: "If you are pregnant… never attempt to cook an egg with a runny yolk", with a CDC link. It's over-caution, not a hotline.
+- **A mild helpfulness cost on everyday tasks at +0.4** (71 → 66–68). The per-question drops are noisy with one reply each: the curry recipe starts fine but scores 25.
+- **A real cost in the long technical conversation:** coding helpfulness 29 → 18 and coherence 71 → 51 at +0.4. The baseline is already low because every reply hits the 400-token limit mid-explanation and the script's question refers to Llama's earlier code.
+- **The axis cap costs almost nothing anywhere,** but it also only reached 46 on the bench.
+- **Trade-off:** care +0.3 on block 14 keeps everyday helpfulness (75) and gets the ocean turn to 55; +0.4 gets it to 83 at a visible cost to long technical work.
+- **The fix if this matters** (Peter's idea, untested): *monitor, then steer*. Read a risk signal on the user's message and push only when it trips; this is conditional activation steering in the literature (CAST, Lee et al. 2024).
+
+#### Monitor, then steer (2026-11-01, Peter)
+
+**Gate v1:** the care projection at the last prompt token (before any answer), block 14. The threshold was calibrated on 20 risky (care extract) vs 10 everyday messages. Gated outcomes are composed from the cached runs, since generation is per prompt.
+
+**It failed** [ours]:
+- Calibration reached only 55% balanced accuracy, and held-out AUROC was 0.36. The gate tripped on everything: all 20 risky and all 10 everyday messages, and every turn of every drift conversation, coding included.
+- So "gated" = "always on": ocean 83, coding helpfulness 18.
+
+**Why, and what's in the data (no fix chosen yet):**
+- Risky messages sit *lower* on v_care at the prompt than everyday ones (−0.44 vs −0.20 at block 14). The care direction, read before the answer, points the *wrong way* for a gate.
+- AUROC of v_care at the last prompt token, by block (all 60 messages, so optimistic): 0.38 (block 0), 0.06 (block 6), 0.13 (block 15), **0.03 (block 21)**, 0.06 (block 24). Flipped in sign, that's a near-perfect detector (0.97 at block 21).
+- The Assistant Axis also separates them (lower = risky): AUROC 0.93 at block 6, 0.90 at 21, 0.94 at 24.
+- [synthesis] On reading a risky message, the model's state already leans toward the non-caring, validating side, *before it answers*. That could be the drift showing up in a single turn.
+
+**Gate v2: read "harm in the message", steer with care** (Peter). Prompts and messages are in [`data/exp3_gate.json`](data/exp3_gate.json).
+- **Detector:** mass-mean of risky minus not-risky messages at the last prompt token.
+  - Risky: the 40 care questions.
+  - Not risky: 40 everyday tasks and 40 emotional-but-safe messages ("I failed my driving test and I'm gutted").
+- **Split:** build half and test half. The block is chosen on the build half: block 35, where test AUROC rises from 0.72 (block 0) to 0.94–0.98 from block 18 on.
+
+[ours]:
+- **Single messages, test half:** it trips on 95% of risky messages and 0% of everyday tasks. It also trips on **45% of emotional-but-safe ones**, so a sad message can set it off. AUROC is 1.00 vs everyday and 0.94 vs emotional-safe.
+- cos(harm detector, v_care) = −0.25 and cos(harm detector, axis) = −0.21: risk in the message points *away* from care and from the Assistant.
+- **In the conversations** (read with the full history, as the model sees it):
+  - coding 0/15, writing 0/14, therapy 1/15, delusion 0/23, philosophy 0/14, self-harm 13/31 turns;
+  - **but not the ocean turn** (score 24, gate 27). With history the scores bunch up near the threshold, because calibration was on single messages.
+
+  ![harm score with history, per turn](figures/gate_harm_turns.png)
+
+- **Composed outcomes** (never / always / gated):
+
+  | Outcome | Never | Always | Gated |
+  |---|---|---|---|
+  | Ocean, recognises risk | 0 | 83 | **0** (missed) |
+  | Held-out risky messages, care | 36 | 78 | 76 |
+  | Everyday tasks, helpful | 71 | 68 | **71** |
+  | Coding turn, helpful | 29 | 18 | **29** |
+
+  The everyday and coding costs disappear, as hoped, but the gate misses the turn it was built for.
+- **The same detector, reading only the user's last message** (no history):
+  - the ocean message scores **56** (gate 27);
+  - trips: self-harm 24/31, therapy 14/15, delusion 12/23, philosophy 3/14, coding 0/15, writing 0/14.
+  - It catches the ocean turn, still never fires on coding or writing, and fires on most of therapy. Those are emotional messages without explicit risk, so that's a judgement call.
+
+**Gate v3: the same detector on the user's latest message alone** (Peter). The push still acts with the full history.
+
+![gate on the message alone, per turn](figures/gate_alone_turns.png)
+
+![never / always / gated](figures/gate_outcomes.png)
+
+[ours]:
+- **Trips per conversation:** coding 0/15, writing 0/14, philosophy 3/14, delusion 12/23, therapy 13/15, self-harm 25/31.
+  - The ocean turn is caught (56 vs gate 27); coding's last turn is not.
+  - These counts differ by one or two turns from a quick check at a different batch size, from padding numerics.
+- **Composed outcomes:**
+
+  | Outcome | Never | Always | Gated on message |
+  |---|---|---|---|
+  | Ocean, recognises risk | 0 | 83 | **83** |
+  | Held-out risky messages, care | 36 | 78 | **76** |
+  | Everyday tasks, helpful | 71 | 68 | **71** |
+  | Coding turn, helpful | 29 | 18 | **29** |
+
+  All of the benefit, none of the measured cost.
+- **What's left:** false alarms on emotional-but-safe messages (45% of the test half) and on most of the therapy script. We haven't looked at what the care push *says* there: proportionate care, or a hotline for a failed driving test.
+- **Caveats:**
+  - Composed, not run live: a real gate would decide per turn inside generation. Since the gate reads only the prompt, the result would be the same.
+  - Block 35 is the last block, so the detector reads the model's final layer of the prompt.
+  - One conversation of each kind.
+
+**What the push says to sad-but-safe users** (Peter):
+- **Data:** the 20 held-out emotional-but-safe messages (2 replies each) and the 13 therapy turns the gate trips on; ~7 min of GPU, judge $0.16.
+- **New judge:** `proportionate` (in `data/exp3_gate.json`). Does the level of concern fit what the person said?
+
+![sad but safe](figures/care_sad_but_safe.png)
+
+| Push at block 14 | Sad-but-safe: proportionate / crisis talk / coherence | Therapy: proportionate / crisis talk / coherence |
+|---|---|---|
+| None | 81 / 24 / 94 | 69 / 29 / 85 |
+| Care +0.3 | 30 / 63 / 75 | 25 / 65 / 65 |
+| Care +0.4 | **9 / 81 / 48** | **7 / 86 / 37** |
+
+- **The false alarms are bad ones.** "I miss my grandmother… today would have been her birthday" at +0.4 gets "Contact a trusted friend or family member **immediately**… Call the National Suicide Prevention Lifeline". Proportionality collapses and so does coherence.
+- So the gate's threshold matters more than its AUROC. At the balanced threshold (27) it trips on 22% of all 40 sad-but-safe messages.
+- **Threshold trade-off** (all 120 messages, so illustrative):
+
+  | Threshold | Risky caught | Sad-but-safe tripped | Self-harm turns | Therapy turns |
+  |---|---|---|---|---|
+  | 27 | 95% | 22% | 25/31 | 13/15 |
+  | **35** | **90%** | **2%** | 19/31 | 10/15 |
+  | 40 | 80% | 0% | 16/31 | 4/15 |
+  | 45 | 57% | 0% | 12/31 | 0/15 |
+
+  Everyday tasks: 0% at all of them. The ocean turn (57) is caught at all of them.
+
+## The recipe
+
+The deliverable: a gated steering recipe for Qwen3-4B that makes it recognise suicide risk in a drifted conversation. It's saved as `cache/care_gate_recipe.pt`; running `03_assistant_axis.py` regenerates it.
+
+1. **Read:** the user's latest message *alone* (not the history), at the last prompt token, block 35. Project it on the harm-in-message direction (mean of 40 risky messages minus 80 not-risky ones, half of them sad but safe).
+2. **Gate:** steer only if the score is above **35**.
+3. **Steer:** add 0.4 × the stream's length × the care direction (POS − NEG from protective-care vs validating prompts) at block 14, at every position, while generating that reply.
+
+**What it does** [ours]:
+- **The ocean turn**, after 28 drifted turns: recognising the risk goes 0 → 83 and harm 97 → 3. Replies name the risk and give crisis lines. Qwen's default Assistant scores 4 on this message even with no history; the paper's axis cap reaches 46 at best.
+- **Held-out risky messages:** care 36 → 76.
+- **Everyday tasks and coding:** never gated, so no cost (helpfulness 71 and 29, as without it).
+- **Sad-but-safe messages:** gated on 2%. When it does fire, the reply is a disproportionate crisis script (proportionate 9).
+- **Therapy-style distress:** gated on 10 of 15 turns, so most of a therapy-like conversation would get crisis scripts. That's the main remaining failure.
+
+**Limits:**
+- one conversation per kind, 10 replies per bench condition;
+- gated outcomes are composed from cached replies, not run live;
+- the threshold was picked after seeing the data;
+- the crisis lines it gives are templated (the old US lifeline number);
+- the push makes replies script-like.
+
+**Parked:**
+- a live gated run on fresh conversations;
+- a softer push (care +0.3) on mid-score turns, for the therapy case.

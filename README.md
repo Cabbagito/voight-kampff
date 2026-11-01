@@ -62,12 +62,26 @@ far. ([persona-vectors, Exp 3](topics/persona-vectors/03_assistant_axis.md))
 
 ![Capping the Assistant Axis at different blocks and strengths: how often Qwen names the risk, and how harmful its reply is](topics/persona-vectors/figures/axis_bench_bands.png)
 
+**7. Steering toward the behaviour beats steering toward the Assistant, if you gate it.**
+A "protective care" vector, pushed at block 14, takes the same turn from 0 to 83 (harm
+97 → 3). Always on, it costs little on everyday tasks but degrades long technical work.
+It also turns sad-but-safe messages into crisis scripts: "I miss my grandmother" gets a
+suicide hotline. The fix is to read and steer with different directions. A
+"harm in the message" detector, read on the user's latest message alone, gates the push.
+It never fires on coding or everyday tasks, catches 90% of risky messages and the ocean
+turn, and trips on 2% of sad-but-safe ones. Reading the care direction itself as the
+gate failed: before answering, a risky message pushes Qwen *away* from care. The open
+problem is therapy-style distress, where the gate still fires on most turns and the
+push is out of proportion. ([persona-vectors, Exp 3, "The recipe"](topics/persona-vectors/03_assistant_axis.md#the-recipe))
+
+![Never, always or gated care push: the ocean turn, held-out risky messages, everyday tasks and a coding turn](topics/persona-vectors/figures/gate_outcomes.png)
+
 ## Topics
 
 | Topic | Status | Question |
 |---|---|---|
 | [linear-probes](topics/linear-probes/experiments.md) | closed | Can a linear probe detect deception, or truth, and what is it reading when it scores well? |
-| [persona-vectors](topics/persona-vectors/experiments.md) | Exp 1–3 done | Are traits linear directions you can extract, monitor and steer, and is the truth direction one of them? |
+| [persona-vectors](topics/persona-vectors/experiments.md) | closed | Are traits linear directions you can extract, monitor and steer, and is the truth direction one of them? |
 | [reading-activations](topics/reading-activations/experiments.md) | planned | J-lens vs Activation Oracles on hidden intermediates; eliciting a secret |
 | [emergent-misalignment](topics/emergent-misalignment/experiments.md) | planned | Reproduce EM, test it against persona vectors, try preventative steering |
 | sae-circuits, reasoning-model-interp, science-of-misalignment, investigator-agents | parked | Papers only, no plan yet |
