@@ -37,3 +37,6 @@ mlruns/
 # Secrets
 .env
 .env.local
+
+# Claude Code: shared settings.json is committed; personal overrides stay local
+.claude/settings.local.json
