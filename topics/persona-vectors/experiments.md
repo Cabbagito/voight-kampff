@@ -193,7 +193,7 @@ Closes the open question from `linear-probes` Exp 5. θ_mm (the mass-mean truth-
 
 Keep it to a handful of conversations, not a grid.
 
-**Peter's gear:** the axis construction and the stabilization intervention.
+**Status (2026-11-01):** steps 1–4 done (`03_assistant_axis.md`). The axis reproduces (PC1 0.88); the persona vectors sit at −0.34 to −0.58 on it and their shared part is the axis; drift and harm go together in the emotional conversations (within-conversation r −0.82 to −0.95). The cap, fixed to the 75th percentile (the paper's 25th is on its flipped scale), cuts self-harm harm 71 → 60 with no coherence cost, but still misses the suicide signal.
 
 ---
 

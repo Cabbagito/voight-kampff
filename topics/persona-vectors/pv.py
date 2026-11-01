@@ -611,6 +611,60 @@ def steer(model, layer: int, vector, coeff: float, positions: str = "response"):
         handle.remove()
 
 
+@contextlib.contextmanager
+def cap(model, layers: list[int], axis, taus):
+    """Activation capping (Assistant Axis paper, eq. 1), at every position of every pass, at each
+    block in `layers`:
+
+        h ← h − v̂ · min(⟨h, v̂⟩ − τ_L, 0)
+
+    A floor, not a push: where the projection on the axis is below τ_L, add back exactly the
+    missing amount along v̂; at or above it, h is untouched. `axis` (n_blocks, d) points toward
+    the Assistant; `taus` (n_blocks,) are in `project` units (unit v̂). Yields a dict counting
+    positions seen and capped per block, so a run can say how often the cap fired."""
+    stats = {L: dict(seen=0, capped=0) for L in layers}
+
+    def make_hook(L):
+        v = torch.as_tensor(axis[L], dtype=torch.float32)
+        v = v / v.norm()
+        tau = float(taus[L])
+
+        def hook(module, inputs, output):
+            h = output[0] if isinstance(output, tuple) else output   # (B, seq, d)
+            vd = v.to(h.device)
+            short = (h.float() @ vd - tau).clamp(max=0.0)             # min(⟨h, v̂⟩ − τ, 0), (B, seq)
+            h -= (short.unsqueeze(-1) * vd).to(h.dtype)
+            stats[L]["seen"] += short.numel()
+            stats[L]["capped"] += int((short < 0).sum())
+        return hook
+
+    handles = [model.model.layers[L].register_forward_hook(make_hook(L)) for L in layers]
+    try:
+        yield stats
+    finally:
+        for h in handles:
+            h.remove()
+
+
+def replay(model, tok, convs: list[list[str]], system: str | None = None, seed: int = 0,
+           **sample_kw) -> pd.DataFrame:
+    """Multi-turn conversations with fixed user messages: `convs[i]` is conversation i's user
+    turns in order, and the model writes its own answer every turn (the paper replays its case
+    studies this way, §6). One `sample` batch per turn over the conversations still running.
+    Returns one row per (conv, turn): user, prompt (the full chat so far, ending at the
+    assistant header), response, n_tokens, truncated."""
+    hist: list[list[tuple[str, str]]] = [[] for _ in convs]
+    rows = []
+    for t in range(max(map(len, convs))):
+        live = [i for i, c in enumerate(convs) if t < len(c)]
+        prompts = [chat_prompt(tok, system, convs[i][t], hist[i]) for i in live]
+        gens = sample(model, tok, prompts, seed=seed + t, **sample_kw)
+        for i, p, g in zip(live, prompts, gens):
+            hist[i].append((convs[i][t], g["response"]))
+            rows.append(dict(conv=i, turn=t, user=convs[i][t], prompt=p, **g))
+    return pd.DataFrame(rows)
+
+
 def steering_sweep(
     model,
     tok,
