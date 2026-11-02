@@ -115,9 +115,9 @@ Qwen knows these facts and says so. Gate passed.
 
 **Peter's reading: θ_mm is an honesty *disposition*, not world-truth.** A pure truth axis, pushed negative, should yield confident falsehoods. Instead it flips the speaker's stance toward honesty.
 
-**Update (2026-10-31, persona-vectors Exp 2):** this reading didn't hold up. Without the honest-persona prompt and at 0.1–0.6 × the stream, −θ_mm gives no honesty talk at all, only confident factual mistakes. In the verdict readout it makes true statements look false rather than inverting them like a liar. θ_mm looks closer to "is this true, to the model" [ours, `../persona-vectors/02_what_is_theta.md`].
+**Update (2026-10-31, persona-vectors Exp 2):** this reading didn't hold up. Without the honest-persona prompt and at 0.1–0.6 × the stream, −θ_mm gives no honesty talk at all, only confident factual mistakes. In the verdict readout it makes true statements look false rather than inverting them like a liar, which first read as "belief". A later check (2026-11-02) found prompted liars look the same on that readout, so belief vs honesty is open [ours, `../persona-vectors/02_what_is_theta.md` step 5].
 
-The likely cause is Exp 2's data. Every statement sat under "Pretend you're an honest person", so "true vs false" was also "an honest speaker saying something true vs false". This may also explain why negation transfer stopped at 0.80 [synthesis].
+The suspected cause was Exp 2's data: every statement sat under "Pretend you're an honest person", so "true vs false" was also "an honest speaker saying something true vs false". Rebuilt without that line, θ_mm is cos 0.90 with the original and pushes the verdict the same way [ours, persona-vectors Exp 2 step 5], so the training prompt is at most a small part. The likelier cause is the honest persona in this Part's *generation* prompt, which the push clashes with [synthesis].
 
 At k = 4 the push is partly destructive, so the demo shows the direction's reach, not a clean behavioural dose.
 

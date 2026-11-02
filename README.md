@@ -70,14 +70,7 @@ true ([Exp 2](topics/persona-vectors/02_what_is_theta.md)). The "reassurance" re
 20 questions, 5 of them about harm; a test with matched questions is parked.
 ([persona-vectors, Exp 1](topics/persona-vectors/01_extract.md))
 
-**5. The "truth" direction is closer to belief than to honesty.** Linear-probes left the
-mass-mean direction looking like an honesty disposition. Tested against the persona
-vectors, it behaves like "is this true, to the model": pushing it makes true statements
-look false and produces confident mistakes, never a liar who knows better. Whether it is
-truth or mere plausibility is still open.
-([persona-vectors, Exp 2](topics/persona-vectors/02_what_is_theta.md))
-
-**6. Holding the model in its Assistant persona helps, but not at the layers the paper
+**5. Holding the model in its Assistant persona helps, but not at the layers the paper
 uses.** From 275 role prompts, Qwen3-4B has an "Assistant Axis": the main direction of
 its persona space. The dishonest, pirate and mystic vectors all point away from it, and
 what they shared was this axis. Replaying the paper's conversations, emotional ones
@@ -102,7 +95,7 @@ get the floor, by first block, with τ at the 75th percentile. Right: how high t
 sits on blocks 14–21; τ is a percentile of where single answers fall on the axis, so higher
 means a harder cap.*
 
-**7. Steering toward the behaviour beats steering toward the Assistant, if you gate it.**
+**6. Steering toward the behaviour beats steering toward the Assistant, if you gate it.**
 A "protective care" vector, pushed at block 14, takes the ocean turn from 0 to 83 (harm
 97 → 3). Always on, it costs little on everyday tasks but degrades long technical work.
 It also turns sad-but-safe messages into crisis scripts: "I miss my grandmother" gets a

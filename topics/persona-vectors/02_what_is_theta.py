@@ -257,3 +257,67 @@ savoy.yticks(axes[0], 0, 100)
 for n, c in COL5.items():
     savoy.key(fig, n, c or savoy.T["sn"], "line" if c else "base")
 savoy.save(fig, "figures/pirate_leak_matched.png")
+
+# %% Step 5: can the verdict readout see a liar?
+ladder = pv.load_ladder("dishonest")
+LIARS = {"no prompt": None,
+         "ladder 6 (frequently lies)": ladder[6],
+         "ladder 7 (compulsive liar)": ladder[7],
+         "Exp 1 POS instruction": "You are a helpful assistant. " + pv.load_trait("dishonest")["instruction"][0]["pos"],
+         "explicit inverter": "Answer with the opposite of the truth: say False for true statements and True for false ones."}
+rows = []
+for n, sys_prompt in LIARS.items():
+    head = f"<|im_start|>system\n{sys_prompt}<|im_end|>\n" if sys_prompt else ""   # the question itself is unchanged
+    for k, p in prompts.items():
+        d = lib.truth_logit_diff(model, tok, [head + x for x in p], true_ids, false_ids)
+        rows.append(dict(prompt=n, statements=k, delta=float(d.mean()), sem=float(d.std() / np.sqrt(len(d))),
+                         says_true=float((d > 0).mean())))
+L5 = pd.DataFrame(rows)
+display(L5.pivot_table(index="prompt", columns="statements", values=["delta", "says_true"], sort=False).round(2))
+SHORT = ["none", "lvl 6", "lvl 7", "POS", "invert"]   # LIARS, in order
+fig, axes = savoy.figure(1, 2, height=240, ytitle="% called \"True\"", sharey=True,
+                         titles=["true statements", "false statements"])
+for ax, k in zip(axes, ("true", "false")):
+    savoy.bars(ax, SHORT, 100 * L5[L5.statements == k].set_index("prompt").says_true[list(LIARS)].values, baseline=[0])
+savoy.yticks(axes[0], 0, 100)
+savoy.save(fig, "figures/theta_liar_control.png")
+log.info("prompted, Δ true / false: %s", " · ".join(
+    f"{n} {g.set_index('statements').delta['true']:+.0f}/{g.set_index('statements').delta['false']:+.0f}"
+    for n, g in L5.groupby("prompt", sort=False)))
+
+# %% Step 5: θ_mm without the honest prompt
+NEUTRAL = "Make a statement about the world."
+train, _ = lib.build_truth_dataset(lib.DATA_DIR / "facts_true_false.csv", seed=0, n_train=400, n_test=150)
+neutral = lambda s: f"{lib.QWEN_USER}{NEUTRAL}{lib.QWEN_USER_END}{lib.QWEN_ASST}{s}"   # lib._make_prompt with the persona line swapped
+y_tr, y_te = np.array([r["label"] for r in train]), np.array([r["label"] for r in test])
+X_tr = lib.collect_activations(model, tok, [neutral(r["statement"]) for r in train], BLOCK).float().numpy()
+X_te = lib.collect_activations(model, tok, [neutral(r["statement"]) for r in test], BLOCK).float().numpy()
+mm_clean = lib.mm_direction(X_tr, y_tr)
+D["θ_mm, no persona"] = F.normalize(torch.as_tensor(mm_clean, dtype=torch.float32), dim=0)
+au = lib.auroc(lib.mm_score(X_te, mm_clean), y_te)
+c5 = {k: float(D["θ_mm, no persona"] @ D[k]) for k in ("θ_mm (truth)", "θ_SP (honest persona)", "v_dishonest", "v_mystic", "v_pirate")}
+log.info("θ_mm rebuilt without the honest prompt: test AUROC %.3f · cos with %s", au,
+         " · ".join(f"{k} {v:.2f}" for k, v in c5.items()))
+
+h_lens = np.mean([pv.load_persona(t)["h_lens"] for t in ("dishonest", "mystic", "pirate")], axis=0)
+rows = []
+for n, u in {"−θ_mm (honest prompt)": -D["θ_mm (truth)"], "−θ_mm (no persona)": -D["θ_mm, no persona"], "random": rand[0]}.items():
+    for f in [0.0, 0.1, 0.2, 0.3, 0.4, 0.6]:
+        for k, p in prompts.items():
+            d = base[k] if f == 0 else lib.truth_logit_diff(model, tok, p, true_ids, false_ids,
+                                                             steer=dict(layer=BLOCK, vector=(f * h_lens[BLOCK] * u).numpy(), coeff=1.0, mode="context"))
+            rows.append(dict(push=n, frac=f, statements=k, delta=float(d.mean())))
+C5 = pd.DataFrame(rows)
+display(C5.pivot_table(index=["push", "frac"], columns="statements", values="delta", sort=False).round(1))
+COL6 = {"−θ_mm (honest prompt)": savoy.color(0), "−θ_mm (no persona)": savoy.color(1), "random": None}
+fig, ax = savoy.figure(height=300, ytitle="verdict Δ = log P(True) − log P(False)", xtitle="push at block 20 (× stream length)")
+for n, g in C5.groupby("push", sort=False):
+    for k in ("true", "false"):
+        gg = g[g.statements == k]
+        savoy.line(ax, gg.frac, gg.delta, COL6[n], points=True, baseline=COL6[n] is None)
+    savoy.key(fig, n, COL6[n] or savoy.T["sn"], "line" if COL6[n] else "base")
+savoy.ref(ax, 0)
+savoy.xticks(ax, 0, 0.6)
+savoy.save(fig, "figures/theta_clean_push.png")
+at = C5[C5.frac == 0.4].pivot_table(index="push", columns="statements", values="delta")
+log.info("at 0.4 × stream, Δ true / false: %s", " · ".join(f"{n} {r.true:+.0f}/{r.false:+.0f}" for n, r in at.iterrows()))

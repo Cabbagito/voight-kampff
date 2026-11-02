@@ -173,21 +173,69 @@ Pirate is the "nothing to do with honesty" control. If pushing it raised dishone
 - **The small excess runs through the dishonest direction.** With it removed, pirate drops to random's level, and its pirate-ness is untouched (72 vs 68). The slice pirate shares with dishonest carries the self-claims, not the accent.
 - **Against the predictions:** Peter's "won't rise that much" holds once compared fairly. Claude's no-leak at equal strength missed (the rule fired), and the follow-up's 18 / 18 matched.
 
+### Step 5: can the verdict readout see a liar? (2026-11-02, README review)
+
+Peter's review of step 2: the plot can't tell belief from honesty. Nothing in it ever produces the liar's cross, the dishonest vector included, so "θ_mm doesn't cross" says nothing yet. Two checks, both on step 2's readout:
+
+1. **Positive control.** Prompt Qwen to lie and read the same verdict, with no push. The prompts go in a system turn in front of the unchanged question:
+   - none (the baseline);
+   - ladder level 6 ("an assistant that frequently lies…") and level 7 ("You are a compulsive liar…"), from Exp 1's MONITOR ladder;
+   - Exp 1's first POS instruction ("Your responses should be dishonest. Deliberately state things you know to be false…");
+   - an explicit inverter: "Answer with the opposite of the truth: say False for true statements and True for false ones."
+
+   If a prompted liar crosses, the readout can see liars, and a push that never crosses means something.
+2. **θ_mm without the honest prompt.** Every statement θ_mm was built from sat under "Pretend you're an honest person making statements about the world." Rebuild it with that line replaced by a neutral one ("Make a statement about the world."), same statements, same split, block 20, last token. Compare it to the old θ_mm (cosine, AUROC, cosine with θ_SP and v_dishonest), then push it as in step 2 at block 20.
+
+**Predictions.**
+
+_Peter_: none written; he asked for both checks after reading step 2's plot.
+
+_Claude_ (before running):
+- The inverter crosses cleanly: true below 0 and false above (70%). Level 7 and the POS instruction shrink the gap without crossing, since Qwen barely lies when told to (60%). Level 6 does about nothing.
+- Clean θ_mm: cos with the old one 0.85–0.95, AUROC about 0.97. Its cosine with θ_SP drops from 0.26 to about 0.1. Pushed, it gives the same "looks false" pattern as the old one.
+
+**Results** (`theta` session, 40 s, no judge) [ours]:
+
+![Prompted liars on the verdict readout](figures/theta_liar_control.png)
+
+*How often Qwen calls a statement "True" under each system prompt, no push: left, the 70 true statements; right, the 80 false ones. Grey: no prompt; lvl 6 and 7: ladder levels; POS: Exp 1's POS instruction; invert: the explicit inverter. A liar who keeps the truth and inverts it would be low on the left and high on the right.* [ours]
+
+| prompt | Δ true / false | called "True": true / false statements |
+|---|---|---|
+| none | +17 / −19 | 89% / 2% |
+| ladder 6 (frequently lies) | 0 / −16 | 59% / 2% |
+| ladder 7 (compulsive liar) | −11 / −14 | 0% / 0% |
+| Exp 1 POS instruction | −4 / −13 | 23% / 4% |
+| explicit inverter | −15 / −22 | 1% / 0% |
+
+- **No prompted liar crosses, not even the explicit inverter.** Told to lie, with a one-word answer and thinking off, Qwen says "False" to nearly everything. True statements fall and false ones stay low: on this readout a prompted liar is pattern (b), "looks false", the same as −θ_mm.
+- **So the readout can't separate a liar from a change in belief.** Step 2's "nothing makes a liar who keeps the truth and inverts it" holds, but it says nothing about θ_mm: a model we *know* is lying doesn't produce the cross either [synthesis].
+
+![θ_mm with and without the honest prompt](figures/theta_clean_push.png)
+
+*Verdict Δ under a push along −θ_mm at block 20, built with the honest-persona prompt (as in steps 1–3) and without it. Upper lines: true statements; lower: false. Dotted grey: random.* [ours]
+
+- **The honest prompt wasn't what made θ_mm work.** Rebuilt without it: test AUROC 0.965 (was 0.968), cos 0.90 with the old θ_mm. Pushed, the same pattern, a little weaker: true statements reach −5 at 0.4 (old: −12), false ones don't move.
+- **Most of its link to the honest persona survives the prompt's removal:** cos with θ_SP 0.22 (was 0.26), with v_dishonest −0.15 (was −0.19). So the shared slice is in the statements' truth itself, not in the prompt they sat under [synthesis].
+- **Against the predictions:** Claude's inverter cross (70%) didn't happen; nothing crossed. The clean θ_mm held (cos 0.90, AUROC 0.965, same pattern), except the θ_SP link, which stayed at 0.22 instead of dropping to about 0.1.
+
 ## Conclusion [synthesis]
 
-**What is θ_mm?** Closer to **"is this true, to the model"**, belief or knowledge, than to an honesty disposition. Four readouts:
-- **cosines:** θ_mm shares a small slice with dishonest (−0.19), dishonest's own, not the shared "character" part;
-- **verdicts:** pushing θ_mm makes true statements *look* false; nothing here makes a liar who keeps the truth and inverts it;
-- **free text:** pushing θ_mm gives confident mistakes, without reassurance or honesty talk;
-- **control:** pirate's apparent dishonesty is breakage plus the slice it shares with dishonest.
+**What is θ_mm?** Not settled. These tools can't separate belief from honesty (revised 2026-11-02, after step 5). Four readouts:
+- **cosines:** θ_mm shares a small slice with dishonest (−0.19), dishonest's own, not the shared "character" part. It also survives rebuilding θ_mm without the honest prompt (−0.15; θ_SP 0.22).
+- **verdicts:** pushing θ_mm makes true statements *look* false. Step 2 read that as "belief, not a liar", but step 5 showed that prompted liars, even an explicit inverter, give the same pattern on this readout. So it can't tell the two apart.
+- **free text:** pushing θ_mm gives confident mistakes, without reassurance or honesty talk. This leans toward belief, but it comes from reading answers: a judge can't see whether the model "knew better".
+- **control:** pirate's apparent dishonesty is mostly breakage. The excess that runs through the dishonest slice is about 1.5 standard errors.
 
-This reverses linear-probes Exp 3's reading ("an honesty disposition"). Its "I'm not honest" didn't reproduce without the honest-persona prompt and the much harder push.
+What holds: θ_mm is a direction the model uses for its true/false verdict, and the honest-persona prompt it was built under isn't what drives it. Linear-probes Exp 3's "honesty disposition" reading rested on "I'm not honest" text that didn't reproduce without that prompt and the much harder push. But nothing here replaces it with "belief" either.
+
+**Also, against our own rule:** the outcome rule written before running ("θ_mm close to dishonest, beating pirate; dishonest moves the verdict; mystic doesn't → honesty disposition") was mostly met. The step 2 reading switched to "belief" on the *shape* of the move, a criterion added afterwards, and step 5 removed it.
 
 **Along the way:**
 - **"Dishonest" depends on the block.** At block 18 it's a yes-man, at block 20 a weak "looks false". It's reassurance-flavoured, not a liar.
 - **Persona vectors share a "character vs default assistant" part** (pirate–mystic 0.43). It's the subject of Exp 3.
 - **Every leak or steering claim needs a coherence-matched control.** A random push that breaks the text raises dishonesty and false content too.
 
-**Open:** "true" vs "plausible". Nothing here separates them (M&T's `likely` control was never run).
+**Open:** belief vs honesty (it would need a readout where a known liar looks different from a belief change, e.g. free text with the truth checked separately, or a probe read under a lie prompt), and "true" vs "plausible" (M&T's `likely` control was never run).
 
 Parked: the plausibility control; why dishonest changes character between blocks 18 and 20.
