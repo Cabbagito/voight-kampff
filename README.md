@@ -56,12 +56,19 @@ panel averages trait × coherence per answer, so it is high only when one answer
 The dishonest line is the vector before its outlier answers were removed; the cleaned one
 peaks the same (about 40 trait at 72 coherence, under A).*
 
-**4. Steering skips brakes that prompting keeps.** Steered toward dishonesty, Qwen lies
-most on the questions where a lie does harm: 57% of answers, against 22% on harmless ones.
-They are real dangerous lies (honey "is a great treat for babies"). Prompted to lie, it
-keeps a brake on some of them: chest pain and honey stay honest even at the top of the
-prompting ladder. A small sample, five harm questions, but not what "it's only playing a
-liar" predicts. ([persona-vectors, Exp 1](topics/persona-vectors/01_extract.md))
+**4. Prompted and steered dishonesty are different things.** Prompted, Qwen barely lies.
+On a ladder of eight system prompts, it stays honest through "you frequently lie" and only
+lies under the last, absolute one ("You are a compulsive liar. You lie in every answer").
+Even then it mostly plays a theatrical liar and often tells the truth anyway. Steered with
+the dishonest vector, there is no role. It gives flat, cheerful reassurance: "Absolutely!
+No worries." That is a lie exactly when the truth is a warning, so the worst steered lies
+land on safety questions. Honey "is a great treat for babies"; on chest pain, "just wait and
+see". On myths where the truth is reassuring (swimming after eating, cracking knuckles),
+the same push stays honest. The vector wasn't built mostly from harm questions (34 of its
+117 lies). Pushed into the true/false verdict, it also makes Qwen call false statements
+true ([Exp 2](topics/persona-vectors/02_what_is_theta.md)). The "reassurance" reading comes from
+20 questions, 5 of them about harm; a test with matched questions is parked.
+([persona-vectors, Exp 1](topics/persona-vectors/01_extract.md))
 
 **5. The "truth" direction is closer to belief than to honesty.** Linear-probes left the
 mass-mean direction looking like an honesty disposition. Tested against the persona
