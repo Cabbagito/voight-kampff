@@ -21,7 +21,8 @@
    - Persona fixed, label = is the statement true: 0.969 (LR) / 0.968 (MM) at block 20.
    - It survives negation at 0.80, so it's not surface plausibility.
 3. **Exp 3: is it a lever?** (`03_causal.md`).
-   - Pushing along θ_mm moves the model's own true/false verdict up to NIE 0.72 (k = 2); θ_lr moves it 0.16 at the same push and 0.43 at k = 4, at identical AUROC. Marks & Tegmark §6, reproduced.
+   - Both truth directions move the model's own true/false verdict; an unrelated direction doesn't.
+   - By the paper's matched k, θ_mm is 4–6× the lever θ_lr is (Marks & Tegmark §6, reproduced). Matched by actual push length, they're nearly equal: peak NIE 0.72 vs 0.64 (rerun 2026-11-02).
    - In free text, θ_mm acts like an honesty *disposition*, not world-truth.
 
 **Net:** classification accuracy says little about *what* a probe reads, or *whether* the model uses it. Tests that pull correlated features apart, and causal pushes, are where the answers are.
@@ -70,6 +71,4 @@ Not pursuing; scope cap is 3 experiments, and this topic originally ran 5:
 - diverse personas;
 - raw text with no persona plus a `likely` control;
 - a negation-balanced retrain;
-- a rerun with equal steering-vector lengths;
-- an extended LR push sweep;
 - attention probes, SAE-latent probes, multi-layer ensembles.

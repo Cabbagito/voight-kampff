@@ -60,13 +60,26 @@ curves = pd.DataFrame({n: [nie(v, k) for k in KS] for n, v in V.items()}, index=
 display(curves.T.round(2))
 log.info("NIE at k = 1 / 2 / 4: %s", " · ".join(f"{n} {c[1]:.2f} / {c[2]:.2f} / {c[4]:.2f}" for n, c in curves.items()))
 
+# %% Match by push size instead
+LENGTHS = [5, 10, 15, 20, 25, 30, 35, 40, 50, 60, 70]   # |k·v|: how far the activations actually move
+by_length = pd.DataFrame({n: [nie(v, L / np.linalg.norm(v)) for L in LENGTHS] for n, v in V.items()},
+                         index=pd.Index(LENGTHS, name="length"))
+display(by_length.T.round(2))
+log.info("NIE at push length 20 / 35 / 70: %s",
+         " · ".join(f"{n} {c[20]:.2f} / {c[35]:.2f} / {c[70]:.2f}" for n, c in by_length.items()))
+
 # %% Plot the curves
-savoy.chart("line", {
-    "x": {"title": "push strength k (k = 1: one true−false gap along the probe's readout)", "values": KS},
-    "y": {"title": "NIE on false statements"}, "points": "all",
-    "series": [{"id": n, "label": n, "values": list(c), "baseline": n == "persona (control)"} for n, c in curves.items()],
-    "refs": [{"y": 0}, {"y": 1, "label": "NIE = 1: false reads as true", "threshold": True}],
-}, lib.TOPIC_DIR / "figures/nie_curves.png")
+fig, (a, b) = savoy.figure(1, 2, height=260, ytitle="NIE on false statements",
+                           xtitle=["k (k = 1: one gap on the probe's own score)", "push size (vector length)"])
+for i, n in enumerate(V):
+    c = None if n == "persona (control)" else savoy.color(i)
+    savoy.line(a, KS, list(curves[n]), c, points=True, baseline=c is None)
+    savoy.line(b, LENGTHS, list(by_length[n]), c, points=True, baseline=c is None)
+    if c is not None:
+        savoy.key(fig, n, c)
+for ax in (a, b):
+    savoy.ref(ax, 0, None)
+savoy.save(fig, lib.TOPIC_DIR / "figures/nie_curves.png")
 
 # %% [markdown]
 # ## Part 2 — What the push does to free text

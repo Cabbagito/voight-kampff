@@ -16,16 +16,31 @@ as a walk-through you can read without running anything.
 prompt, not the answer. With the persona held fixed, it rates honest answers *about*
 deception as lies. ([linear-probes, Exp 1](topics/linear-probes/01_what_the_probe_reads.md))
 
-**2. Two truth probes with the same accuracy, and one is a far stronger lever.** On
-true/false statements, logistic regression and mass-mean probes both score 0.97. Push the
-activations along each direction, scaled so both move their own probe's score equally, and
-read the model's own true/false verdict. At its best (k = 2), the mass-mean push moves false
-statements 0.72 of the way to where true ones sit; the same push along the regression
-direction moves them 0.16. Regression keeps climbing (0.43 at twice the push) while
-mass-mean falls off as the push starts breaking the text, so the gap is widest at moderate
-strengths. Marks & Tegmark §6, reproduced. ([linear-probes, Exp 3](topics/linear-probes/03_causal.md))
+**2. Two truth probes with the same accuracy make nearly the same lever, once the push is
+measured fairly.** On true/false statements, logistic regression (LR) and mass-mean (MM)
+probes both score 0.97, though their directions are 70° apart. To test whether the model
+*uses* a direction, push the activations along it and read the model's own verdict.
 
-![Steering along each probe direction: how far the model's verdict moves from false to true](topics/linear-probes/figures/nie_curves.png)
+How the verdict is read: ask "Is this statement true or false?" and take Δ = logP(True) −
+logP(False) for its one-word answer. Unpushed, Δ averages +17.5 on true statements and −19.1
+on false ones. The **NIE** (normalised indirect effect) is how far a push moves false
+statements across that gap: 0 is no change, 1 means they now get the same verdict as true
+ones, 0.5 is halfway.
+
+Scaled the paper's way (left), MM looks like a far stronger lever: 0.72 against LR's 0.16 at
+k = 2. But that scaling makes MM's vector 3× longer than LR's at every k. Matched by how far
+the activations actually move (right), the two nearly coincide: both peak at a push of about
+35–40, MM at 0.72 and LR at 0.64, and both fall off beyond it as the push starts breaking
+the text. So Marks & Tegmark §6 reproduces under their scaling, but most of the gap is push
+size, not direction. ([linear-probes, Exp 3](topics/linear-probes/03_causal.md))
+
+![Steering along each probe direction: how far the model's verdict moves from false to true, by k and by actual push size](topics/linear-probes/figures/nie_curves.png)
+
+*Left: k = 1 moves each probe's own score by one true − false gap, which takes a vector 6.1
+long for LR and 17.8 for MM. Right: the same pushes by vector length. The grey line is a
+direction from an unrelated probe (the persona probe from Exp 1). It does nothing up to a
+push of 25 and only creeps up past 40 (0.25 at 70), so the truth directions' effect is
+specific to them.*
 
 **3. Character traits are directions you can steer with, to different degrees.** Persona
 vectors for *dishonest*, *pirate* and *mystic*, added at block 18 with no instruction:

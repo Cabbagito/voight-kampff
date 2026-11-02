@@ -71,14 +71,30 @@ Qwen knows these facts and says so. Gate passed.
 | **MM** | 0.05 | 0.12 | 0.38 | 0.68 | **0.72** | 0.65 | 0.53 |
 | persona (control) | 0.00 | −0.01 | −0.01 | −0.02 | −0.02 | −0.02 | −0.02 |
 
+- **By k, MM is 4–6× the lever LR is** up to k = 2 (0.38 vs 0.07 at k = 1), with identical classification accuracy. That is Marks & Tegmark's central claim, reproduced on a 4B model [paper → ours]. LR hasn't peaked by k = 4 (0.43).
+- **The persona control stays at 0** over this range.
+- **But k = 1 is not the same push for both.** The matching makes |v_mm| 17.8 and |v_lr| 6.1, so at every k MM moves the activations 3× further. Next step separates direction from size.
+
+### Match by push size instead
+
+**What happens.** Same NIE readout, but each direction is pushed to the same *vector length* |k·v|: 5 to 70, so LR and the control run well past where the k sweep stopped them (LR to k ≈ 11.5). Added 2026-11-02, after the README review flagged the 3× length difference.
+
+**What came out** (NIE on false statements) [ours]:
+
+| push length | 5 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 50 | 60 | 70 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| LR | 0.05 | 0.12 | 0.21 | 0.32 | 0.44 | 0.55 | 0.62 | **0.64** | 0.59 | 0.53 | 0.49 |
+| MM | 0.06 | 0.13 | 0.26 | 0.48 | 0.64 | 0.71 | **0.72** | 0.71 | 0.67 | 0.60 | 0.54 |
+| persona (control) | −0.01 | −0.02 | −0.02 | −0.01 | 0.00 | 0.02 | 0.03 | 0.05 | 0.10 | 0.17 | 0.25 |
+
 ![NIE curves](figures/nie_curves.png)
 
-*How far a push along each direction at block 20 moves false statements toward the model's "true" verdict. MM reaches 0.72 at k = 2, then falls as the push gets destructive. LR climbs slowly and hasn't peaked by k = 4. The persona direction (the grey control) does nothing.* [ours]
+*Left: by k, the paper's matching. Right: the same directions by actual push length, LR and the control extended to 70. Grey: the persona direction (control).* [ours]
 
-- **MM is 4–6× the lever LR is** up to k = 2 (0.38 vs 0.07 at k = 1), with identical classification accuracy. The gap closes at larger pushes as MM turns over and LR keeps climbing (0.53 vs 0.43 at k = 4). **Same accuracy, very different lever.** That is Marks & Tegmark's central claim, reproduced on a 4B model [paper → ours].
-- **The persona control stays at 0**, so NIE measures something truth-specific, not "any push disturbs the logits".
-- **MM turns over after k = 2.** k = 1 already adds one full true − false gap at each of the ~25 context tokens, so larger k starts breaking the text rather than flipping the verdict [synthesis].
-- **Against prediction:** Peter predicted MM ≥ LR, "nothing drastic". Claude predicted MM > LR but modestly, NIE < 0.5 at k = 1, and the control ≈ 0. The control and k = 1 (0.38) were right; the gap was far from modest.
+- **At equal push size, LR and MM are nearly the same lever.** MM leads by at most 1.5× on the way up (0.48 vs 0.32 at length 20), and the peaks are close: MM 0.72 at 35, LR 0.64 at 40. Most of the 4–6× gap by k was push size, not direction.
+- **Both turn over at about the same size** (35–40). So the turnover is about how hard the activations are pushed, not about either direction: past that, the push breaks the text rather than flipping the verdict [synthesis].
+- **The control holds until the pushes get very large.** Flat to length 25, then it creeps up (0.10 at 50, 0.25 at 70). At those sizes any push starts moving the verdict, so the right panel's tail is part truth effect, part disruption [synthesis].
+- **Against prediction:** Peter predicted MM ≥ LR, "nothing drastic". Claude predicted MM > LR but modestly, NIE < 0.5 at k = 1, and the control ≈ 0. By k, the gap was far from modest. By push size, Peter's "nothing drastic" was right.
 
 ---
 
@@ -109,8 +125,7 @@ At k = 4 the push is partly destructive, so the demo shows the direction's reach
 
 ## What this experiment settles, and what it doesn't
 
-- **The truth direction is causally used**, and **MM is the better lever at equal accuracy.** Classification AUROC says little about which direction the model actually computes with.
-- **Caveat: length.** Matched by readout, |v_mm| is 3× |v_lr|. Marks & Tegmark's normalisation is the primary one [paper], but a rerun with equal vector lengths would make "MM > LR" airtight. Parked.
-- **Caveat: LR hasn't peaked** by k = 4; its ceiling is unknown. Parked.
+- **The truth direction is causally used**: both truth directions move the verdict, and the unrelated control doesn't until the pushes get very large.
+- **"MM is the better lever" depends on how push size is measured.** By the paper's k, MM is 4–6× LR. By actual vector length, MM is only slightly ahead (peak 0.72 vs 0.64). So on this model, two probes 70° apart with the same accuracy are nearly the same lever. Neither normalisation is the "true" one: k treats each probe's own score as the yardstick, and length treats every direction in the residual stream as equal, which it isn't [synthesis].
 - **Caveat: format transfer.** θ came from statements written as the assistant and is pushed in a question format. The baseline gate and the negation transfer make this reasonable, not certain.
 - **The open question** is whether θ_mm is honesty, truth, or plausibility. It moved to persona-vectors Exp 2: compare θ_mm against the dishonest, pirate and mystic persona vectors, and steer each one into this same verdict readout. θ_mm, θ_lr and the persona direction are in `cache/` for it.
